@@ -14,6 +14,7 @@ import shutil
 import filecmp
 import logging
 import textwrap
+from datetime import datetime
 
 tty_colors = True
 if sys.platform.startswith('win32'):
@@ -290,7 +291,8 @@ def _print_diff(inp_lsts, report, outdir_pt):
     #         log_con = logging.StreamHandler(sys.stdout)
     #         log_fle = logging.FileHandler(out_f, mode='a+')
 
-    out_f = outdir_pt.joinpath('d2p_report.txt') if report != 'console' else pt(
+    rep_fn = f'd2p_report_{datetime.now().strftime("%d.%b.%Y_%H:%M:%S")}.txt'
+    out_f = outdir_pt.joinpath(rep_fn) if report != 'console' else pt(
         tempfile.gettempdir()).joinpath('d2p.dummy')
     out_f.unlink(missing_ok=True)
 

@@ -380,17 +380,27 @@ def main(cfg):
     survey = dtc.run_compare()
 
     d2p = D2p(survey, new, out_base_pt=cfg.outpath)
-    if cfg.report:
-        if cfg.report != 'console':
-            d2p._make_output()
-        _print_diff(dtc, cfg.report, d2p.outdir_pt)
-    else:
+    if not cfg.report:
         d2p.run()
         if cfg.dir:
             d2p._mv_tmp2outdir()
         elif cfg.archive:
             d2p._pack_difftree(cfg.archive)
         d2p._dispose()
+    else:
+        _print_diff(dtc, cfg.report, new.parent)
+
+    # if cfg.report:
+    #     if cfg.report != 'console':
+    #         d2p._make_output()
+    #     _print_diff(dtc, cfg.report, d2p.outdir_pt)
+    # else:
+    #     d2p.run()
+    #     if cfg.dir:
+    #         d2p._mv_tmp2outdir()
+    #     elif cfg.archive:
+    #         d2p._pack_difftree(cfg.archive)
+    #     d2p._dispose()
 
     d2p.inf(0, "Choosen task completed.")
 

@@ -29,14 +29,12 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.1.0-alpha'
+__version__ = '0.2.0-alpha'
 
 
 # TODO:
 # Add to message system more infos
 # Opti file/dir counter @end report
-# Use tmp mechanics also for report option (and move in case: console just not
-# the content)
 
 
 class D2p_Common:

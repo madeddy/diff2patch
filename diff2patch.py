@@ -280,14 +280,17 @@ def _print_diff(inp_lsts, report, outdir_pt):
     # TODO With py3.10 widely used we could replace this
     # @pattern matching
     # e.g.
+    # rep_fn = f'd2p_report_{datetime.now().strftime("%d.%b.%Y_%H:%M:%S")}.txt'
+    # out_f = outdir_pt.joinpath(rep_fn)
+    # log_con = logging.StreamHandler(sys.stdout)
+    # log_fle = logging.FileHandler(out_f, mode='a+')
     # match report:
     #     case 'console':
-    #         log_con = logging.StreamHandler(sys.stdout)
+    #         log_handler = (log_con, )  # logging.NullHandler()
     #     case 'file':
-    #         log_fle = logging.FileHandler(out_f, mode='a+')
+    #         log_handler = (log_fle, )
     #     case 'both':
-    #         log_con = logging.StreamHandler(sys.stdout)
-    #         log_fle = logging.FileHandler(out_f, mode='a+')
+    #         log_handler = log_con, log_fle
 
     rep_fn = f'd2p_report_{datetime.now().strftime("%d.%b.%Y_%H:%M:%S")}.txt'
     out_f = outdir_pt.joinpath(rep_fn) if report != 'console' else pt(

@@ -354,12 +354,12 @@ def _parse_args():
         '-i', '--indepth',
         action='store_false',
         help='Compares the files content instead just their stats.')
-    aps.add_argument(
-        '--verbose',
-        metavar='level [0-2]',
-        type=int,
-        choices=range(0, 3),
-        help='Amount of info output. 0:none, 2:much, default:1')
+    # aps.add_argument(
+    #     '--verbose',
+    #     metavar='level [0-2]',
+    #     type=int,
+    #     choices=range(0, 3),
+    #     help='Amount of info output. 0:none, 2:much, default:1')
     aps.add_argument(
         '--version',
         action='version',
@@ -376,6 +376,7 @@ def main(cfg):
     old = chk_indirs(cfg.old)
     new = chk_indirs(cfg.new)
 
+    # TODO: Add verbosity functionallity to classes
     dtc = DirTreeCmp(old, new, shallow=cfg.indepth)
     survey = dtc.run_compare()
 

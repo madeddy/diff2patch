@@ -18,11 +18,12 @@ from datetime import datetime
 
 tty_colors = True
 if sys.platform.startswith('win32'):
-    try:
-        from colorama import init
-        init(autoreset=True)
-    except ImportError:
-        tty_colors = False
+    if sys.getwindowsversion()[2] < 16257:
+        try:
+            from colorama import init
+            init(autoreset=True)
+        except ImportError:
+            tty_colors = False
 
 
 __title__ = 'Diff2patch'

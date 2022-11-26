@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """
 Diff2patch is a tool which compares two directorys trees, e.g old/new, and
 produces another directory, which contains all different or in the second dir
@@ -29,7 +29,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.2.0-alpha'
+__version__ = '0.3.0-alpha'
 
 
 # TODO:

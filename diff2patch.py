@@ -30,7 +30,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.3.0-alpha'
+__version__ = '0.4.0-alpha'
 
 
 # TODO:
@@ -80,17 +80,7 @@ class D2p_Common:
             print(textwrap.fill(msg, width=90, initial_indent=ind1,
                   subsequent_indent=ind2))
 
-    @classmethod
-    def _void_dir(cls, dst):
-        """Checks if given directory has content."""
-        return not any(dst.iterdir())
 
-    @classmethod
-    def _make_dirstruct(cls, dst):
-        """Constructs any needet output directorys if they not already exist."""
-        if not dst.exists():
-            cls.inf(2, f"Creating directory structure for: {dst}")
-            dst.mkdir(parents=True, exist_ok=True)
 
 
 class DirTreeCmp(D2p_Common, filecmp.dircmp):
@@ -192,7 +182,7 @@ class D2p(D2p_Common):
     """
     d2p_tmp_dir = None
     outdir = 'diff2patch_out'
-    outdir_pt = None
+    output_pt = None
 
     def __init__(self, survey_lst, new_pt, out_base_pt=None):
         self.survey_lst = survey_lst
@@ -207,14 +197,26 @@ class D2p(D2p_Common):
         sys.exit(0)
 
     def _dispose(self, outp=False):
-        """Removes temporary content and the outdir_pt if empty."""
+        """Removes temporary content and the output_pt if empty."""
         if self.d2p_tmp_dir:
             shutil.rmtree(self.d2p_tmp_dir)
         if outp:
-            shutil.rmtree(self.outdir_pt)
+            shutil.rmtree(self.output_pt)
+
+    @staticmethod
+    def _void_dir(dst):
+        """Checks if given directory has content."""
+        return not any(dst.iterdir())
+
+    @classmethod
+    def _make_dirstruct(cls, dst):
+        """Constructs any needet output directorys if they not already exist."""
+        if not dst.exists():
+            cls.inf(2, f"Creating directory structure for: {dst}")
+            dst.mkdir(parents=True, exist_ok=True)
 
     def _outp_check_user(self):
-        self.inf(0, f"The output dir '{self.outdir_pt}' exists already. If we "
+        self.inf(0, f"The output dir '{self.output_pt}' exists already. If we "
                  "proceed the content will be replaced!", m_sort='cau')
         while True:
             userinp = input("Proceed? Choose y|yes or n|no : ").lower()
@@ -229,23 +231,23 @@ class D2p(D2p_Common):
 
     def _make_output(self):
         """Constructs outdir path and structure."""
-        self.outdir_pt = self.out_base_pt / self.outdir
-        if self.outdir_pt.exists() and not self._void_dir(self.outdir_pt):
+        self.output_pt = self.out_base_pt / self.outdir
+        if self.output_pt.exists() and not self._void_dir(self.output_pt):
             self._outp_check_user()
-        self._make_dirstruct(self.outdir_pt)
+        self._make_dirstruct(self.output_pt)
 
     def _pack_difftree(self, fmt):
         """Constructs a archive with the outdir content."""
         if fmt not in ['zip', 'tar']:
             fmt += 'tar'
-        out_arch = self.outdir_pt.joinpath('d2p_patch')
+        out_arch = self.output_pt.joinpath('d2p_patch')
         shutil.make_archive(out_arch, fmt, self.d2p_tmp_dir)
 
     def _mv_tmp2outdir(self):
         """Moves temporary content to real output."""
         # FIXME: move does error if src exists in dst; how?
         for entry in self.d2p_tmp_dir.iterdir():
-            shutil.move(entry, self.outdir_pt)
+            shutil.move(entry, self.output_pt)
 
     def _gather_difftree(self):
         """Copys the differing objects to the temp outdir path."""
@@ -272,7 +274,7 @@ class D2p(D2p_Common):
             self.inf(2, "No files for a patch collected.")
         else:
             self.inf(2, f"Collected {D2p_Common.count['fl_total']} patch files in "
-                     f"{self.outdir_pt!s}")
+                     f"{self.output_pt!s}")
 
 
 def _print_to(label, inp_lst, log_handler):
@@ -284,7 +286,7 @@ def _print_to(label, inp_lst, log_handler):
         logging.info(f"{label} {str(entry)}")
 
 
-def _print_diff(inp_lsts, report, outdir_pt):
+def _print_diff(inp_lsts, report, output_pt):
     """
     This manages the printout of the diff report to the given target.
     Available targets are:

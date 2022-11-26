@@ -5,7 +5,6 @@ produces another directory, which contains all different or in the second dir
 added objects.
 """
 
-import os
 import sys
 import argparse
 from pathlib import Path as pt
@@ -30,7 +29,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.4.0-alpha'
+__version__ = '0.5.0-alpha'
 
 
 # TODO:
@@ -107,9 +106,6 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
             'Thumbs.db', 'Thumbs.db:encryptable', 'desktop.ini', '.directory',
             '.DS_Store', 'log.txt', 'traceback.txt'])
         self.shallow = shallow
-        # "self.right" needs to stay as str because the parent class, so we need
-        # another name for the pathlike
-        self.new_pt = pt(new)
 
     def phase3(self):
         self.same_files, self.diff_files, self.funny_files = filecmp.cmpfiles(
@@ -118,8 +114,10 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
     def phase4(self):
         self.subdirs = {}
         for _cd in self.common_dirs:
-            cd_l = os.path.join(self.left, _cd)
-            cd_r = os.path.join(self.right, _cd)
+            # cd_l = os.path.join(self.left, _cd)
+            # cd_r = os.path.join(self.right, _cd)
+            cd_l = self.left.joinpath(_cd)
+            cd_r = self.right.joinpath(_cd)
             self.subdirs[_cd] = self.__class__(
                 cd_l, cd_r, self.ignore, self.hide, self.shallow)
 
@@ -128,7 +126,7 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
 
     def _process_hits(self, in_lst):
         """Helper to compile the directory object lists."""
-        return [self.new_pt.joinpath(entry) for entry in in_lst if in_lst]
+        return [self.right.joinpath(entry) for entry in in_lst if in_lst]
 
     def _gather_inst_hits(self):
         """Adds for every subdir instance the findings."""

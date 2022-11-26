@@ -393,28 +393,25 @@ def main(cfg):
     dtc = DirTreeCmp(old, new, shallow=cfg.indepth)
     survey = dtc.run_compare()
 
-    d2p = D2p(survey, new, out_base_pt=cfg.outpath)
-    if not cfg.report:
-        d2p.run()
-        if cfg.dir:
-            d2p._mv_tmp2outdir()
-        elif cfg.archive:
-            d2p._pack_difftree(cfg.archive)
-        d2p._dispose()
-    else:
-        _print_diff(dtc, cfg.report, new.parent)
+    # control print
+    print(f"config arch:  {cfg}")
 
-    # if cfg.report:
-    #     if cfg.report != 'console':
-    #         d2p._make_output()
-    #     _print_diff(dtc, cfg.report, d2p.outdir_pt)
-    # else:
-    #     d2p.run()
-    #     if cfg.dir:
-    #         d2p._mv_tmp2outdir()
-    #     elif cfg.archive:
-    #         d2p._pack_difftree(cfg.archive)
-    #     d2p._dispose()
+    if cfg.dir or cfg.archive:
+        d2p.run()
+        try:
+            if cfg.dir:
+                d2p._mv_tmp2outdir()
+            elif cfg.archive:
+                d2p._pack_difftree(cfg.archive)
+            d2p._dispose()
+        except OSError:
+            d2p.inf(0, "Problem as the output directory / archive was moved to"
+                    "destination or at the removal of the tempdir structure.", m_sort='cau')
+        else:
+            d2p.inf(1, "The output of the diff content is in the path"
+                    f"{d2p.output_pt} to find.")
+    else:
+        _print_diff(dtc, cfg.report, pt(cfg.new).parent)
 
     d2p.inf(0, "Choosen task completed.")
 

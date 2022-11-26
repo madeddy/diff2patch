@@ -216,18 +216,13 @@ class D2p(D2p_Common):
         self.inf(0, f"The output dir '{self.outdir_pt}' exists already. If we "
                  "proceed the content will be replaced!", m_sort='cau')
         while True:
-            userinp = input("Type y/n : ").lower()
-            if userinp in 'yes':
-                break
-            elif userinp in 'no':
-                self._exit()
-            # TODO With py3.10 widely used we can maybe replace this
-            # @pattern matching
-            # match userinp:
-            #     case 'y' | 'yes':
-            #         break
-            #     case 'n' | 'no':
-            #         self._exit()
+            userinp = input("Proceed? Choose y|yes or n|no : ").lower()
+
+            match userinp:
+                case 'y' | 'yes':
+                    break
+                case 'n' | 'no':
+                    self._exit()
 
         self._dispose(outp=True)
 
@@ -296,33 +291,23 @@ def _print_diff(inp_lsts, report, outdir_pt):
         file
         both
     """
-    # TODO With py3.10 widely used we could replace this
-    # @pattern matching
-    # e.g.
-    # rep_fn = f'd2p_report_{datetime.now().strftime("%d.%b.%Y_%H:%M:%S")}.txt'
-    # out_f = outdir_pt.joinpath(rep_fn)
-    # log_con = logging.StreamHandler(sys.stdout)
-    # log_fle = logging.FileHandler(out_f, mode='a+')
-    # match report:
-    #     case 'console':
-    #         log_handler = (log_con, )  # logging.NullHandler()
-    #     case 'file':
-    #         log_handler = (log_fle, )
-    #     case 'both':
-    #         log_handler = log_con, log_fle
 
     rep_fn = f'd2p_report_{datetime.now().strftime("%d.%b.%Y_%H:%M:%S")}.txt'
-    out_f = outdir_pt.joinpath(rep_fn) if report != 'console' else pt(
-        tempfile.gettempdir()).joinpath('d2p.dummy')
-    out_f.unlink(missing_ok=True)
-
-    log_fle = logging.FileHandler(out_f, mode='a+')
+    out_f = output_pt.joinpath(rep_fn)
     log_con = logging.StreamHandler(sys.stdout)
-    log_handler = (log_con, )  # logging.NullHandler()
-    if report == 'file':
-        log_handler = (log_fle, )
-    elif report == 'both':
-        log_handler = log_con, log_fle
+    log_fle = logging.FileHandler(out_f, mode='a+', delay=True)
+
+    match report:
+        case 'console':
+            log_handler = (log_con, )
+        case 'file':
+            log_handler = (log_fle, )
+        case 'both':
+            log_handler = log_con, log_fle
+
+    # out_f = output_pt.joinpath(rep_fn) if report != 'console' else pt(
+    #     tempfile.gettempdir()).joinpath('d2p.dummy')
+    # out_f.unlink(missing_ok=True)
 
     _print_to("Diff2patch report", '', log_handler)
     _print_to("right only", inp_lsts.new_only_all, log_handler)
@@ -394,8 +379,8 @@ def _parse_args():
 
 def main(cfg):
     """Main block of the module with functionality for use on CLI."""
-    if not sys.version_info[:2] >= (3, 9):
-        raise Exception("Must be executed in Python 3.9 or later.\n"
+    if not sys.version_info[:2] >= (3, 10):
+        raise Exception("Must be executed in Python 3.10 or above.\n"
                         "You are running {}".format(sys.version))
 
     old = chk_indirs(cfg.old)

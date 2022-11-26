@@ -34,7 +34,7 @@ __version__ = '0.2.0-alpha'
 
 # TODO:
 # Add to message system more infos
-# Opti file/dir counter @end report
+# Optimize file/dir counter @ end-report
 
 
 class D2p_Common:
@@ -43,9 +43,17 @@ class D2p_Common:
     verbosity = 1
 
     count = {'dif_fl_found': 0, 'new_fl_found': 0, 'fun_fl_found': 0, 'fl_total': 0}
-    std, ul, red, gre, ora, blu, ylw, bg_blu, bg_red = (
-        '\x1b[0m', '\x1b[03m', '\x1b[31m', '\x1b[32m', '\x1b[33m', '\x1b[34m',
-        '\x1b[93m', '\x1b[44;30m', '\x1b[45;30m' if tty_colors else '')
+    std = '\x1b[0m'  # standard font color e.g. white on black background
+    ul = '\x1b[03m'  # underline
+    red = '\x1b[31m'  # red
+    gre = '\x1b[32m'  # green
+    ora = '\x1b[33m'  # orange
+    blu = '\x1b[34m'  # blue
+    ylw = '\x1b[93m'  # yellow
+    bg_blu = '\x1b[44;30m'  # background blue
+    bg_red = '\x1b[45;30m'  # background red
+    if not tty_colors:
+        std, ul, red, gre, ora, blu, ylw, bg_blu, bg_red = ''
 
     @classmethod
     def telltale(cls, fraction, total, obj):
@@ -88,6 +96,11 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
     """
     This class compiles a diff object list of two given dirs for comparison.
     A modified version of dircmp is used where shallow can be choosen.
+
+    new_only_all:   Files which exist only in the dir-tree of "new"
+    diff_all:       Differing files of the two dir-trees
+    funny_all:      Unidentified files of the dir-trees
+    survey_lst:     All three lists above compiled in one
     """
     new_only_all = []
     diff_all = []
@@ -158,10 +171,9 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
         self.count['new_fl_found'] += len(self.new_only_all)
         self.count['fun_fl_found'] += len(self.funny_all)
         self.count['fl_total'] += len(self.survey_lst)
-        self.inf(2, f"We found {self.count['dif_fl_found']} different"
-                 f" files, {self.count['new_fl_found']} additional files"
-                 f" in the right dir and {self.count['fun_fl_found']} non"
-                 f"comparable files.")
+        self.inf(2, f"We found {self.count['dif_fl_found']} different files,"
+                 f" {self.count['new_fl_found']} additional files in the right"
+                 f" dir and {self.count['fun_fl_found']} non comparable files.")
 
         return self.survey_lst
 
@@ -169,7 +181,14 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
 class D2p(D2p_Common):
     """
     Class which backups a list of given path objects to a target dir. Can be
-    done as pure directory tree or as archive of given type."""
+    done as pure directory tree or as archive of given type.
+
+    d2p_tmp_dir:    Temporary dir for the patch files before theyre moved to
+                    "outdir"
+    outdir:         Name of the dir where the patch files are placed
+    output_pt:      The full path for the patch/report files; includes out dir
+                    as last path element
+    """
     d2p_tmp_dir = None
     outdir = 'diff2patch_out'
     outdir_pt = None
@@ -321,7 +340,9 @@ def chk_indirs(inp):
 
 def _parse_args():
     """Gets the args if CLI is used."""
-    aps = argparse.ArgumentParser()
+    aps = argparse.ArgumentParser(
+        description='Generates a diff patch or overview of two given directory'
+        ' structures.')
     aps.add_argument(
         'old',
         action='store',
@@ -336,7 +357,7 @@ def _parse_args():
     opts.add_argument(
         '-d', '--dir',
         action='store_true',
-        help='Outputs the diff to a directory.')
+        help='Outputs the diff as a directory structure.')
     opts.add_argument(
         '-a', '--archive',
         type=str,
@@ -351,12 +372,13 @@ def _parse_args():
         '-o', '--outpath',
         action='store',
         type=str,
-        help='Output path for the differing files, dirs.'
-             ' Defaults to the parent of <new>')
+        help='Output path name for the diff result. Defaults to the parent dir'
+        ' of <new> if not given.')
     aps.add_argument(
         '-i', '--indepth',
         action='store_false',
-        help='Compares the files content instead just their stats.')
+        help='Compares the files content instead stats like size, date of'
+        ' last change.')
     # aps.add_argument(
     #     '--verbose',
     #     metavar='level [0-2]',

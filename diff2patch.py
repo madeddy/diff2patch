@@ -101,8 +101,8 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
     def __init__(self, old, new, ignore=None, hide=None, shallow=True):
         self.cmp_inst = None
         super().__init__(old, new, ignore, hide)
-        self.left = old
-        self.right = new
+        self.left = pt(old).resolve()
+        self.right = pt(new).resolve()
         self.ignore.extend([
             'Thumbs.db', 'Thumbs.db:encryptable', 'desktop.ini', '.directory',
             '.DS_Store', 'log.txt', 'traceback.txt'])
@@ -186,8 +186,8 @@ class D2p(D2p_Common):
 
     def __init__(self, survey_lst, new_pt, out_base_pt=None):
         self.survey_lst = survey_lst
-        self._inp_pt = new_pt
-        self.out_base_pt = new_pt.parent if not out_base_pt else pt(
+        self._inp_pt = pt(new_pt).resolve(strict=True)
+        self.out_base_pt = pt(new_pt).parent if not out_base_pt else pt(
             out_base_pt).resolve(strict=True)
 
     def _exit(self):
@@ -323,7 +323,7 @@ def chk_indirs(inp):
     if not pt(inp).resolve(strict=True).is_dir():
         raise NotADirectoryError(
             f"Error: Input needs to be a directory path: {inp}")
-    return pt(inp)
+    # return pt(inp)
 
 
 def _parse_args():
@@ -386,13 +386,14 @@ def main(cfg):
         raise Exception("Must be executed in Python 3.10 or above.\n"
                         "You are running {}".format(sys.version))
 
-    old = chk_indirs(cfg.old)
-    new = chk_indirs(cfg.new)
+    chk_indirs(cfg.old)
+    chk_indirs(cfg.new)
 
     # TODO: Add verbosity functionallity to classes
-    dtc = DirTreeCmp(old, new, shallow=cfg.indepth)
+    dtc = DirTreeCmp(cfg.old, cfg.new, shallow=cfg.indepth)
     survey = dtc.run_compare()
 
+    d2p = D2p(survey, cfg.new, out_base_pt=cfg.outpath)
     # control print
     print(f"config arch:  {cfg}")
 

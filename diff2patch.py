@@ -35,12 +35,14 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.9.0-alpha'
+__version__ = '0.10.0-alpha'
 
 __all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
 
 # TODO:
+# IDEA: Add abbility to output other cmp lists(like filecmp)
+
 class Log:
     """This configures and inits all logging for the module."""
 
@@ -224,17 +226,26 @@ class DirTreeCmp(D2pCommon, Log):
     This class compiles a diff object list of two given dirs for comparison.
     A modified version of dircmp is used where shallow can be choosen.
 
-    new_only_all:   Files which exist only in the dir-tree of "new"
+    dir1_only_all:  Files which exist only in the dir-tree of "dir1"  # unused for now
+    dir2_only_all:  Files which exist only in the dir-tree of "dir2"
+    mutual_all:     Mutual files of the two dir-trees  # unused for now
     diff_all:       Differing files of the two dir-trees
-    funny_all:      Unidentified files of the dir-trees
-    survey_lst:     All three lists above compiled in one
+    sketchy_all:    Unidentified files of the dir-trees
+    mutual_dirs:    Mutual dirs of the two dir-trees  # unused for now
+    mutual_sk_dirs: Unidentified mutual dirs  # unused for now
+    cmp_survey:     All three lists needed for a patch(dir2 only, diff, sketchy files)
+                    compiled together in a dict
     """
-    new_only_all = []
-    diff_all = []
-    funny_all = []
-    survey_lst = []
+    # dir1_only_all = list()
+    dir2_only_all = list()
+    # mutual_all = list()
+    diff_all = list()
+    sketchy_all = list()
+    # mutual_dirs = list()
+    # sketchy_dirs = list()
+    cmp_survey = dict()
 
-    def __init__(self, old, new, ignore=None, hide=None, shallow=True):
+    def __init__(self, dir1, dir2, ignore=None, hide=None, shallow=True):
         self.cmp_inst = None
         super().__init__(old, new, ignore, hide)
         self.left = pt(old).resolve()
@@ -245,16 +256,15 @@ class DirTreeCmp(D2pCommon, Log):
         self.shallow = shallow
 
     def phase3(self):
-        self.same_files, self.diff_files, self.funny_files = filecmp.cmpfiles(
-            self.left, self.right, self.common_files, self.shallow)
+        """Finds out differences between mutual files of a dir."""
+        self.diff_files, self.same_files, self.sketchy_files = self.cmp_dirfiles(
+            self.dir1, self.dir2, self.mutual_files, self.shallow)
 
     def phase4(self):
         self.subdirs = {}
-        for _cd in self.common_dirs:
-            # cd_l = os.path.join(self.left, _cd)
-            # cd_r = os.path.join(self.right, _cd)
-            cd_l = self.left.joinpath(_cd)
-            cd_r = self.right.joinpath(_cd)
+        for _cd in self.mutual_dirs:
+            cd_l = self.dir1.joinpath(_cd)
+            cd_r = self.dir2.joinpath(_cd)
             self.subdirs[_cd] = self.__class__(
                 cd_l, cd_r, self.ignore, self.hide, self.shallow)
 
@@ -263,13 +273,13 @@ class DirTreeCmp(D2pCommon, Log):
 
     def _process_hits(self, in_lst):
         """Helper to compile the directory object lists."""
-        return [self.right.joinpath(entry) for entry in in_lst if in_lst]
+        return [self.dir2.joinpath(entry) for entry in in_lst if in_lst]
 
     def _gather_inst_hits(self):
         """Adds for every subdir instance the findings."""
-        self.new_only_all.extend(self._process_hits(self.right_only))
+        self.dir2_only_all.extend(self._process_hits(self.dir2_only))
         self.diff_all.extend(self._process_hits(self.diff_files))
-        self.funny_all.extend(self._process_hits(self.funny_files))
+        self.sketchy_all.extend(self._process_hits(self.sketchy_files))
 
     def _recursive_cmp(self):
         """Lets the instance iterate recursively through the dir tree."""
@@ -286,7 +296,7 @@ class DirTreeCmp(D2pCommon, Log):
     def run_compare(self):
         """Controls the compare process and returns the outcome."""
         self._recursive_cmp()
-        if self.funny_all:
+        if self.sketchy_all:
             # NOTE: perhaps do something with this e.g. deeper checks, warns
             # etc.
             self.log.warning("Well shit! We have UFO's! < unidentified file objects >")
@@ -307,15 +317,7 @@ class DirTreeCmp(D2pCommon, Log):
 
         return self.cmp_survey
 
-        self.count['dif_fl_found'] += len(self.diff_all)
-        self.count['new_fl_found'] += len(self.new_only_all)
-        self.count['fun_fl_found'] += len(self.funny_all)
-        self.count['fl_total'] += len(self.survey_lst)
-        self.inf(2, f"We found {self.count['dif_fl_found']} different files,"
-                 f" {self.count['new_fl_found']} additional files in the right"
-                 f" dir and {self.count['fun_fl_found']} non comparable files.")
-
-        return self.survey_lst
+    
 
 
 class D2p(D2pCommon, Log):
@@ -323,16 +325,22 @@ class D2p(D2pCommon, Log):
     Class which backups a list of given path objects to a target dir. Can be
     done as pure directory tree or as archive of given type.
 
-    d2p_tmp_dir:    Temporary dir for the patch files before theyre moved to
-                    "outdir"
-    outdir:         Name of the dir where the patch files are placed
-    output_pt:      The full path for the patch/report files; includes out dir
+    d2p_tmp_dir:    Temp dir for patch files before they're moved to "output_pt"
+    outdir_name:    New dir where the patch files are placed
+    output_pt:      The full path for the patch/report files; includes outdir_name
                     as last path element
     """
+
     d2p_tmp_dir = None
-    outdir = 'diff2patch_out'
+    outdir_name = 'diff2patch_out'
     output_pt = None
 
+    def __init__(self, cmp_survey, dir2_pt, out_base_pt=None):
+        self.cmp_survey = cmp_survey
+        self.patch_lst = list()
+        self.inp_pt = self.check_inpath(dir2_pt)
+        self.out_base_pt = self.inp_pt.parent if not out_base_pt else self.check_inpath(
+            out_base_pt)
 
     def _print_proxy(self, header, label, survey_lst):
         """Helper func which prints the report variant out."""
@@ -405,7 +413,7 @@ class D2p(D2pCommon, Log):
 
     def _make_output(self):
         """Constructs outdir path and structure."""
-        self.output_pt = self.out_base_pt / self.outdir
+        self.output_pt = self.out_base_pt / self.outdir_name
         if self.output_pt.exists() and not self._void_dir(self.output_pt):
             self._outp_check_user()
         self._make_dirstruct(self.output_pt)
@@ -423,11 +431,10 @@ class D2p(D2pCommon, Log):
         for entry in self.d2p_tmp_dir.iterdir():
             shutil.move(entry, self.output_pt)
 
-    def _gather_difftree(self):
+    def _gather_patchtree(self):
         """Copys the differing objects to the temp outdir path."""
-
-        for src in self.survey_lst:
-            rel_src = src.relative_to(self._inp_pt)
+        for src in self.patch_lst:
+            rel_src = src.relative_to(self.inp_pt)
             dst = self.d2p_tmp_dir.joinpath(rel_src)
 
             if src.is_dir():
@@ -450,7 +457,7 @@ class D2p(D2pCommon, Log):
         self.d2p_tmp_dir = pt(tempfile.mkdtemp(
             prefix='Diff2Patch.', suffix='.tmp'))
         self._make_output()
-        self._gather_difftree()
+        self._gather_patchtree()
 
         if self._void_dir(self.d2p_tmp_dir):
             self.log.warning("No files for a patch collected.")
@@ -473,15 +480,15 @@ def _parse_args():
         description='Generates a diff patch or overview of two given directory'
         ' structures.')
     aps.add_argument(
-        'old',
+        'dir1',
         action='store',
         type=chk_indir,
-        help='Old/left directory')
+        help='Dir 1/left directory')
     aps.add_argument(
-        'new',
+        'dir2',
         action='store',
         type=chk_indir,
-        help='New/right directory')
+        help='Dir 2/right directory')
     opts = aps.add_mutually_exclusive_group(required=True)
     opts.add_argument(
         '-d', '--dir',
@@ -502,7 +509,7 @@ def _parse_args():
         action='store',
         type=pt,
         help='Output path name for the diff result. Defaults to the parent dir'
-        ' of <new> if not given.')
+        ' of <dir2> if not given.')
     aps.add_argument(
         '-i', '--indepth',
         action='store_true',
@@ -534,6 +541,7 @@ def main(cfg):
         raise Exception
 
     dlg = Log
+    out_base_pt = cfg.dir2.parent
     try:
         dlg.init_log(report=cfg.report, output_pt=out_base_pt, logfile=cfg.no_log,
                      loglevel=cfg.loglevel.upper())
@@ -548,12 +556,10 @@ def main(cfg):
         f"{dlg._c('rst')}\n"
         f"Comparing > DIR 1:{cfg.dir1} DIR 2:{cfg.dir2}")
 
-    # TODO: Add verbosity functionallity to classes
-    dtc = DirTreeCmp(cfg.old, cfg.new, shallow=cfg.indepth)
+    dtc = DirTreeCmp(cfg.dir1, cfg.dir2, shallow=cfg.indepth)
     survey = dtc.run_compare()
 
-    d2p = D2p(survey, cfg.new, out_base_pt=cfg.outpath)
-    # control print
+    d2p = D2p(survey, cfg.dir2, out_base_pt=cfg.outpath)
     d2p.calc_patch_data()
 
     if cfg.dir or cfg.archive:

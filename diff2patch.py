@@ -3,12 +3,18 @@
 Diff2patch is a tool which compares two directorys trees, e.g dir1/dir2, and
 compiles a set of lists with the findings.
 From this can be made another directory or archive, which contains all different or in the second dir added objects. A written report is also possible.
+
+Parts of the code of this tool shadows with changes to it pythons filecmp module.
 """
 
 import sys
 import argparse
+from types import GenericAlias
+from os.path import curdir, pardir
 from pathlib import Path as pt
+from operator import attrgetter
 from copy import copy
+import stat as st
 import tempfile
 import shutil
 import logging
@@ -35,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.11.0-alpha'
+__version__ = '0.12.0-alpha'
 
 __all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
@@ -240,6 +246,15 @@ class DirTreeCmp(D2pCommon, Log):
     cmp_survey:     All three lists needed for a patch(dir2 only, diff, sketchy files)
                     compiled together in a dict
     """
+
+    bufsize = 8 * 1024
+    _cache = {}
+    def_hide = [curdir, pardir]
+    def_ignore = [
+        'RCS', 'CVS', 'tags', '.git', '.hg', '.bzr', '_darcs', '__pycache__',
+        'Thumbs.db', 'Thumbs.db:encryptable', 'desktop.ini', '.directory', '.DS_Store',
+        'log.txt', 'traceback.txt']
+
     # dir1_only_all = list()
     dir2_only_all = list()
     # mutual_all = list()
@@ -253,11 +268,138 @@ class DirTreeCmp(D2pCommon, Log):
         self.cmp_inst = None
         self.dir1 = self.check_inpath(dir1)
         self.dir2 = self.check_inpath(dir2)
-        self.right = pt(new).resolve()
-        self.ignore.extend([
-            'Thumbs.db', 'Thumbs.db:encryptable', 'desktop.ini', '.directory',
-            '.DS_Store', 'log.txt', 'traceback.txt'])
+        self.hide = DirTreeCmp.def_hide if not hide else hide
+        self.ignore = DirTreeCmp.def_ignore if not ignore else ignore
+        self.skip = self.hide + self.ignore
         self.shallow = shallow
+
+    @classmethod
+    def _deep_cmp(cls, f1, f2):
+        """Compares two files content in chunks."""
+        with f1.open("rb") as of1, f2.open("rb") as of2:
+            while True:
+                b1 = of1.read(cls.bufsize)
+                b2 = of2.read(cls.bufsize)
+                if b1 != b2:
+                    return False
+                if not b1:
+                    return True
+
+    @classmethod
+    def _get_stat(cls, inp):
+        """Returns chosen stat modes for a path object."""
+        modes = attrgetter('st_mode', 'st_size', 'st_mtime')
+        try:
+            return modes(inp.stat()), True
+        except OSError:
+            cls.log.error(f"Could not stat {inp}!")
+            return None, False
+
+    def cmp_file(self, f1, f2, shallow=True):
+        """
+        Compare two files.
+
+        Arguments:
+        f1 -- First file name
+        f2 -- Second file name
+        shallow -- Just check stat signature (do not read the files). defaults to True.
+        Return value:   True if the files are the same, False otherwise.
+
+        This function uses a cache for past comparisons and the results,
+        with cache entries invalidated if their stat information
+        changes.
+        """
+
+        s1, status = self._get_stat(f1)
+        s2, status = self._get_stat(f2)
+        if not status:
+            return False
+        if not st.S_ISREG(s1[0]) or not st.S_ISREG(s2[0]):
+            return False
+        if shallow and s1 == s2:
+            return True
+        if s1[1] != s2[1]:
+            return False
+
+        outcome = self._cache.get((f1, f2, s1, s2))
+        if outcome is None:
+            outcome = self._deep_cmp(f1, f2)
+            if len(self._cache) > 100:
+                self._cache.clear()
+            self._cache[f1, f2, s1, s2] = outcome
+        return outcome
+
+    def cmp_dirfiles(self, d1, d2, mutual, shallow=True):
+        """Compares mutual files in two directories.
+
+        d1, d2 -- directory names
+        mutual -- list of file names found in both directories
+        shallow -- if true, do comparison based solely on stat() information
+        Returns a tuple of three lists:
+        files that compare equal
+        files that are different
+        filenames that aren't regular files.
+        """
+        res = ([], [], [])
+        for x in mutual:
+            f1x = d1.joinpath(x)
+            f2x = d2.joinpath(x)
+            try:
+                cmp_res = abs(self.cmp_file(f1x, f2x, shallow))
+            except OSError:
+                cmp_res = 2
+            res[cmp_res].append(x)
+        return res
+
+    def _get_dirlist(self, inp_pt):
+        """Returns a list of all directory entrys without the occurences in skip."""
+        filtered_dl = [
+            entry.relative_to(inp_pt) for entry in inp_pt.iterdir()
+            if entry not in self.skip]
+        filtered_dl.sort()
+        return filtered_dl
+
+    def phase0(self):
+        """Lists for both dirs the content and filters excludet names out. Doesn't traverse inside subdirectories.
+        """
+        self.dir1_list = self._get_dirlist(self.dir1)
+        self.dir2_list = self._get_dirlist(self.dir2)
+
+    def phase1(self):
+        """Computes lists with mutual and non mutual files and dirs."""
+        d1_set = set(self.dir1_list)
+        d2_set = set(self.dir2_list)
+
+        self.mutual = [entry for entry in d1_set.intersection(d2_set)]
+        self.dir1_only = [entry for entry in d1_set.difference(d2_set)]
+        self.dir2_only = [entry for entry in d2_set.difference(d1_set)]
+
+    def phase2(self):
+        """Distinguish from mutual content files, directories, unidentified."""
+        self.mutual_dirs = list()
+        self.mutual_files = list()
+        self.mutual_sketchy = list()
+
+        for x in self.mutual:
+            path_1 = self.dir1.joinpath(x)
+            path_2 = self.dir2.joinpath(x)
+
+            stat_1, status = self._get_stat(path_1)
+            stat_2, status = self._get_stat(path_2)
+
+            if status:
+                type_1 = st.S_IFMT(stat_1[0])
+                type_2 = st.S_IFMT(stat_2[0])
+                if type_1 != type_2:
+                    self.mutual_sketchy.append(x)
+                elif st.S_ISDIR(type_1):
+                    self.mutual_dirs.append(x)
+                elif st.S_ISREG(type_1):
+                    self.mutual_files.append(x)
+                else:
+                    self.mutual_sketchy.append(x)
+            else:
+                self.mutual_sketchy.append(x)
 
     def phase3(self):
         """Finds out differences between mutual files of a dir."""
@@ -271,9 +413,6 @@ class DirTreeCmp(D2pCommon, Log):
             cd_r = self.dir2.joinpath(_cd)
             self.subdirs[_cd] = self.__class__(
                 cd_l, cd_r, self.ignore, self.hide, self.shallow)
-
-    filecmp.dircmp.methodmap.update(
-        same_files=phase3, diff_files=phase3, funny_files=phase3, subdirs=phase4)
 
     def _process_hits(self, in_lst):
         """Helper to compile the directory object lists."""
@@ -315,7 +454,20 @@ class DirTreeCmp(D2pCommon, Log):
 
         return self.cmp_survey
 
-    
+    methodmap = dict(
+        dir1_list=phase0, dir2_list=phase0,
+        mutual=phase1, dir1_only=phase1, dir2_only=phase1,
+        mutual_dirs=phase2, mutual_files=phase2, mutual_sketchy=phase2,
+        same_files=phase3, diff_files=phase3, sketchy_files=phase3,
+        subdirs=phase4)
+
+    def __getattr__(self, attr):
+        if attr not in self.methodmap:
+            raise AttributeError(attr)
+        self.methodmap[attr](self)
+        return getattr(self, attr)
+
+    __class_getitem__ = classmethod(GenericAlias)
 
 
 class D2p(D2pCommon, Log):

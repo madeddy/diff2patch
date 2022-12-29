@@ -35,7 +35,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.10.0-alpha'
+__version__ = '0.11.0-alpha'
 
 __all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
@@ -183,6 +183,10 @@ class D2pCommon:
             sleep(0.2)
         sys.exit(0)
 
+    @staticmethod
+    def check_inpath(inp, strict=True):
+        """Helper to check if given path exist."""
+        return pt(inp).resolve(strict)
 
     @staticmethod
     def _get_filesize(inp):
@@ -247,8 +251,8 @@ class DirTreeCmp(D2pCommon, Log):
 
     def __init__(self, dir1, dir2, ignore=None, hide=None, shallow=True):
         self.cmp_inst = None
-        super().__init__(old, new, ignore, hide)
-        self.left = pt(old).resolve()
+        self.dir1 = self.check_inpath(dir1)
+        self.dir2 = self.check_inpath(dir2)
         self.right = pt(new).resolve()
         self.ignore.extend([
             'Thumbs.db', 'Thumbs.db:encryptable', 'desktop.ini', '.directory',
@@ -286,12 +290,6 @@ class DirTreeCmp(D2pCommon, Log):
         self._gather_inst_hits()
         for self.cmp_inst in self.subdirs.values():
             self.cmp_inst._recursive_cmp()
-
-    def diff_survey(self):
-        """Delivers a complete list of the differences betwen the two trees.
-        Entrys are pathlike abolute paths."""
-        self.survey_lst = [ele for lst in (
-            self.new_only_all, self.diff_all, self.funny_all) for ele in lst]
 
     def run_compare(self):
         """Controls the compare process and returns the outcome."""
@@ -377,18 +375,34 @@ class D2p(D2pCommon, Log):
         if outp:
             shutil.rmtree(self.output_pt)
 
+    def _pack_difftree(self, fmt):
+        """Constructs a archive with the outdir content."""
+        if fmt not in ['zip', 'tar']:
+            fmt += 'tar'
+        out_archive = self.output_pt.joinpath('d2p_patch')
         self.log.notable(
             "Archiving files. This can take a while depending on sys speed,"
             " archive type and patch size.")
         self.log.warning(f"{self._c('bln')}Working...{self._c('rst')}")
+        shutil.make_archive(out_archive, fmt, self.d2p_tmp_dir, logger=self.log)
+
+    def _mv_tmp2outdir(self):
+        """Moves temporary content to real output."""
+        # FIXME: move does error if src exists in dst; how?
+        for entry in self.d2p_tmp_dir.iterdir():
+            self.count['fl_done'] += 1
+            num, tot, obj = self.count['fl_done'], self.count['fl_total'], entry
+            # CONTROL PRINT
+            # print(f"MV_TMP2OUTDIR: {num, tot, obj}")
             self.log.info(f"{self.telltale(num, tot, obj)}")
+            shutil.move(entry, self.output_pt)
+
     @staticmethod
     def _void_dir(dst):
         """Checks if given directory has content."""
         return not any(dst.iterdir())
 
-    @classmethod
-    def _make_dirstruct(cls, dst):
+    def _make_dirstruct(self, dst):
         """Constructs any needet output directorys if they not already exist."""
         if not dst.exists():
             self.log.info(f"Creating directory structure for: {dst}")
@@ -416,20 +430,6 @@ class D2p(D2pCommon, Log):
         self.output_pt = self.out_base_pt / self.outdir_name
         if self.output_pt.exists() and not self._void_dir(self.output_pt):
             self._outp_check_user()
-        self._make_dirstruct(self.output_pt)
-
-    def _pack_difftree(self, fmt):
-        """Constructs a archive with the outdir content."""
-        if fmt not in ['zip', 'tar']:
-            fmt += 'tar'
-        out_arch = self.output_pt.joinpath('d2p_patch')
-        shutil.make_archive(out_arch, fmt, self.d2p_tmp_dir)
-
-    def _mv_tmp2outdir(self):
-        """Moves temporary content to real output."""
-        # FIXME: move does error if src exists in dst; how?
-        for entry in self.d2p_tmp_dir.iterdir():
-            shutil.move(entry, self.output_pt)
 
     def _gather_patchtree(self):
         """Copys the differing objects to the temp outdir path."""
@@ -438,8 +438,7 @@ class D2p(D2pCommon, Log):
             dst = self.d2p_tmp_dir.joinpath(rel_src)
 
             if src.is_dir():
-                shutil.copytree(src, dst,  # symlinks=False,  # ignore=ignores,
-                                dirs_exist_ok=True)
+                shutil.copytree(src, dst, dirs_exist_ok=True)
             elif src.is_file():
                 self._make_dirstruct(dst.parent)
                 shutil.copy2(src, dst)
@@ -457,6 +456,8 @@ class D2p(D2pCommon, Log):
         self.d2p_tmp_dir = pt(tempfile.mkdtemp(
             prefix='Diff2Patch.', suffix='.tmp'))
         self._make_output()
+        self._make_dirstruct(self.output_pt)
+
         self._gather_patchtree()
 
         if self._void_dir(self.d2p_tmp_dir):

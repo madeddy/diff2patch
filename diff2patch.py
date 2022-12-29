@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.14.0-alpha'
+__version__ = '0.15.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -58,7 +58,7 @@ class Log:
     colormap = {'rst': '\x1b[0m',  # reset
                 'bld': '\x1b[1m',  # bold
                 'ul': '\x1b[4m',  # underline
-                'bln': '\x1b[5',  # blinking
+                'bln': '\x1b[5m',  # blinking
                 'rev': '\x1b[7m',  # reverse fg<->bg
                 'blk': '\x1b[30m',  # black
                 'ora': '\x1b[31m',  # orange
@@ -654,7 +654,7 @@ def _parse_args():
     opts.add_argument(
         '-a', '--archive',
         type=str,
-        choices=('xz', 'gz', 'bz2', 'zip', 'tar'),
+        choices=('xz', 'gz', 'bz', 'zip', 'tar'),
         help='Outputs the diff as archive of given type.')
     opts.add_argument(
         '-r', '--report',

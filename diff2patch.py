@@ -8,12 +8,11 @@ From this can be made another directory or archive, which contains all different
 import sys
 import argparse
 from pathlib import Path as pt
+from copy import copy
 import tempfile
 import shutil
-import filecmp
 import logging
-import textwrap
-from datetime import datetime
+from time import strftime, localtime, sleep
 
 # NOTE: A alternate to ctypes is apparently undocumented sys call to win which
 # activates also color support
@@ -36,52 +35,152 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.7.0-alpha'
+__version__ = '0.8.0-alpha'
+
+__all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
 
 # TODO:
-# Add to message system more infos
-# Optimize file/dir counter @ end-report
+class Log:
+    """This configures and inits all logging for the module."""
+
+    log = None
+    colormap = {'rst': '\x1b[0m',  # reset
+                'bld': '\x1b[1m',  # bold
+                'ul': '\x1b[4m',  # underline
+                'bln': '\x1b[5',  # blinking
+                'rev': '\x1b[7m',  # reverse fg<->bg
+                'blk': '\x1b[30m',  # black
+                'ora': '\x1b[31m',  # orange
+                'gre': '\x1b[32m',  # green
+                'ylw': '\x1b[33m',  # yellow
+                'blu': '\x1b[34m',  # blue
+                'red': '\x1b[35m',  # red
+                'cya': '\x1b[36m',  # cyan
+                'b_blu': '\x1b[44;30m',  # background blue
+                'b_red': '\x1b[45;30m',  # background red
+                'b_wht': '\x1b[47;30m'}  # background white
+    colormap.update((k, '') for k in colormap if not tty_colors)
+
+    class ColorFormatter(logging.Formatter):
+        """A sublassing of Formatter which adds colors to the loggers levelnames."""
+
+        esc = '\x1b['  # escape sequence prefix
+        rst = esc + '0'  # reset
+        col_map = {
+            'DEBUG': '1;37',  # bold, white
+            'INFO': '32',  # green
+            'NOTABLE': '34',  # blue
+            'WARNING': '33',  # yellow
+            'ERROR': '1;35',  # bold, red
+            'CRITICAL': '30;41'}  # black, on red bg
+
+        def __init__(self, fmt):
+            super().__init__(fmt, style='{')
+
+        def formatMessage(self, record):
+            col_record = copy(record)
+            levelname = col_record.levelname
+            seq = self.col_map.get(levelname, 37)  # default white
+            col_levelname = (f"{self.esc}{seq}m{levelname}{self.rst}m")
+            col_record.levelname = col_levelname
+            return self._style.format(col_record)
+
+    class _ReportFilter(logging.Filter):
+        """Allows in the handler where its used only output from  the `_print_proxy`
+        method."""
+
+        def __init__(self, reverse=False):
+            self.rev = reverse
+
+        def filter(self, record):
+            res = record.funcName == '_print_proxy'
+            return res if not self.rev else not res
+
+    @classmethod
+    def _c(cls, key):
+        """tf = Ansi Escape Sequence"""
+        return cls.colormap[key]
+
+    def _notable(self, msg, *args, **kwargs):
+        """Adds a custom logging level 'NOTABLE' with severity level 25, between
+        info(20) and warning(30)."""
+        if self.isEnabledFor(25):
+            self._log(25, msg, args, **kwargs)
+
+    @classmethod
+    def init_log(cls, report=None, output_pt=None, logfile=True, loglevel='NOTABLE'):
+        """
+        Does setup the logging behavior.
+        This includes the functionality for the output of the diff report to all targets
+        and terminal meassages.
+        """
+        logging.addLevelName(25, 'NOTABLE')
+        logging.Logger.notable = cls._notable
+        cls.log = logging.getLogger("D2P")
+
+        # TODO: add another infolevel name like "extra info", info+
+        # Add console handler always. Use custom formatter if tty colors available.
+        con_h = logging.StreamHandler()
+        if not report or report == 'file':
+            con_h.addFilter(cls._ReportFilter(reverse=True))
+        con_h.setLevel(loglevel)
+        _formatter = cls.ColorFormatter if tty_colors else logging.Formatter
+        con_f = _formatter(
+            "[{name}][{levelname:>8s}] >> {message}")
+        con_h.setFormatter(con_f)
+        cls.log.addHandler(con_h)
+
+        # Add log-file handler if not disabled in CLI
+        if logfile:
+            log_fh = logging.FileHandler(
+                pt(__file__).parent.resolve().joinpath('d2p.log'))
+            log_fh.addFilter(cls._ReportFilter(reverse=True))
+            log_fh.setLevel('WARNING')
+            log_ff = logging.Formatter(
+                "{asctime} - {name} - {levelname:>8s} - {message} - {filename}:"
+                "{lineno:d}", style='{')
+            log_fh.setFormatter(log_ff)
+            cls.log.addHandler(log_fh)
+
+        # Add report-file handler if enabled in CLI
+        if report in ('file', 'both'):
+            rep_fn = f'd2p_report_{strftime("%d.%b.%Y_%H:%M:%S", localtime())}.txt'
+            outf_pt = output_pt.joinpath(rep_fn)
+            rep_fh = logging.FileHandler(outf_pt, mode='a+', delay=True)
+            rep_fh.addFilter(cls._ReportFilter())
+            rep_fh.setLevel('INFO')
+            rep_ff = logging.Formatter("{message}", style='{')
+            rep_fh.setFormatter(rep_ff)
+            cls.log.addHandler(rep_fh)
 
 
-class D2p_Common:
+class D2pCommon:
     """This provides shared methods and variables for child classes."""
-    name = __title__
-    verbosity = 1
 
-    count = {'dif_fl_found': 0, 'new_fl_found': 0, 'fun_fl_found': 0, 'fl_total': 0}
-    std = '\x1b[0m'  # standard font color e.g. white on black background
-    ul = '\x1b[03m'  # underline
-    red = '\x1b[31m'  # red
-    gre = '\x1b[32m'  # green
-    ora = '\x1b[33m'  # orange
-    blu = '\x1b[34m'  # blue
-    ylw = '\x1b[93m'  # yellow
-    bg_blu = '\x1b[44;30m'  # background blue
-    bg_red = '\x1b[45;30m'  # background red
-    if not tty_colors:
-        std, ul, red, gre, ora, blu, ylw, bg_blu, bg_red = ''
+    name = __title__
+    count = {'diff_found': 0,
+             'new_found': 0,
+             'sketchy_found': 0,
+             'fl_total': 0,
+             'fl_done': 0,
+             'patch_size': None}
 
     @classmethod
     def telltale(cls, fraction, total, obj):
         """Returns a percentage-meter like output for use in tty."""
-        return f"[{cls.bg_blu}{fraction / float(total):05.1%}{cls.std}] {obj!s:>4}"
+        return (f"[{cls._c('b_blu')}{fraction / float(total):05.1%}"
+                f"{cls._c('rst')}] {obj!s:>4}")
 
     @classmethod
-    def inf(cls, inf_level, msg, m_sort=None):
-        """Outputs by the current verboseness level allowed infos."""
-        if cls.verbosity >= inf_level:  # TODO: use self.tty ?
-            ind1 = f"{cls.name}:{cls.gre} >> {cls.std}"
-            ind2 = " " * 12
-            if m_sort == 'warn':
-                ind1 = f"{cls.name}:{cls.ylw} WARNING {cls.std}> "
-                ind2 = " " * 16
-            elif m_sort == 'cau':
-                ind1 = f"{cls.name}:{cls.red} CAUTION {cls.std}> "
-                ind2 = " " * 20
-            elif m_sort == 'raw':
-                print(ind1, msg)
-                return
+    def _exit(cls):
+        cls.log.notable("Exiting Diff2Patch.\n")
+        for i in range(10, -1, -1):
+            cls.log.warning(
+                f"{cls._c('b_red')}< {i} >{cls._c('rst')} \x1b[10D\x1b[1A\x1b[K")
+            sleep(0.2)
+        sys.exit(0)
+
 
             print(textwrap.fill(msg, width=90, initial_indent=ind1,
                   subsequent_indent=ind2))
@@ -89,7 +188,7 @@ class D2p_Common:
 
 
 
-class DirTreeCmp(D2p_Common, filecmp.dircmp):
+class DirTreeCmp(D2pCommon, Log):
     """
     This class compiles a diff object list of two given dirs for comparison.
     A modified version of dircmp is used where shallow can be choosen.
@@ -159,9 +258,23 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
         if self.funny_all:
             # NOTE: perhaps do something with this e.g. deeper checks, warns
             # etc.
-            # (Well shit! We have UFO's! <unidentified file objects>)
-            pass
-        self.diff_survey()
+            self.log.warning("Well shit! We have UFO's! < unidentified file objects >")
+
+        self.cmp_survey = {'dir1': self.dir1,
+                           'dir2': self.dir2,
+                           'new': self.dir2_only_all,
+                           'diff': self.diff_all,
+                           'sketchy': self.sketchy_all}
+
+        self.count['diff_found'] += len(self.diff_all)
+        self.count['new_found'] += len(self.dir2_only_all)
+        self.count['sketchy_found'] += len(self.sketchy_all)
+        self.count['fl_total'] += sum(list(self.count.values())[:3])
+        self.log.info(f"We found {self.count['diff_found']} different files,"
+                      f" {self.count['new_found']} additional files in directory 2"
+                      f" and {self.count['sketchy_found']} non comparable files.")
+
+        return self.cmp_survey
 
         self.count['dif_fl_found'] += len(self.diff_all)
         self.count['new_fl_found'] += len(self.new_only_all)
@@ -174,7 +287,7 @@ class DirTreeCmp(D2p_Common, filecmp.dircmp):
         return self.survey_lst
 
 
-class D2p(D2p_Common):
+class D2p(D2pCommon, Log):
     """
     Class which backups a list of given path objects to a target dir. Can be
     done as pure directory tree or as archive of given type.
@@ -189,17 +302,34 @@ class D2p(D2p_Common):
     outdir = 'diff2patch_out'
     output_pt = None
 
-    def __init__(self, survey_lst, new_pt, out_base_pt=None):
-        self.survey_lst = survey_lst
-        self._inp_pt = pt(new_pt).resolve(strict=True)
-        self.out_base_pt = pt(new_pt).parent if not out_base_pt else pt(
-            out_base_pt).resolve(strict=True)
 
-    def _exit(self):
-        self.inf(0, "Exiting Diff2Patch.")
-        for i in range(3, -1, -1):
-            print(f"{D2p_Common.bg_red}{i}%{D2p_Common.std}", end='\r')
-        sys.exit(0)
+    def _print_proxy(self, header, label, survey_lst):
+        """Helper func which prints the report variant out."""
+        self.log.notable(f"\n{'-' * 80}\n{'#' * 10} {header} elements ###\n")
+
+        for entry in survey_lst:
+            self.log.notable(f"{label}{str(entry)}")
+
+    def print_diff(self):
+        """This manages the printout of the diff report."""
+
+        self._print_proxy(
+            "Diff2patch report",
+            '',
+            [f"Comparison directories >>"
+             f" FROM: {self.cmp_survey['dir1']} TO: {self.cmp_survey['dir2']}"])
+        self._print_proxy(
+            "Directory-2-only",
+            "New: ",
+            self.cmp_survey['new'])
+        self._print_proxy(
+            "Different",
+            "Diff: ",
+            self.cmp_survey['diff'])
+        self._print_proxy(
+            "Unidentified",
+            "Sketchy: ",
+            self.cmp_survey['sketchy'])
 
     def _dispose(self, outp=False):
         """Removes temporary content and the output_pt if empty."""
@@ -208,6 +338,11 @@ class D2p(D2p_Common):
         if outp:
             shutil.rmtree(self.output_pt)
 
+        self.log.notable(
+            "Archiving files. This can take a while depending on sys speed,"
+            " archive type and patch size.")
+        self.log.warning(f"{self._c('bln')}Working...{self._c('rst')}")
+            self.log.info(f"{self.telltale(num, tot, obj)}")
     @staticmethod
     def _void_dir(dst):
         """Checks if given directory has content."""
@@ -217,12 +352,13 @@ class D2p(D2p_Common):
     def _make_dirstruct(cls, dst):
         """Constructs any needet output directorys if they not already exist."""
         if not dst.exists():
-            cls.inf(2, f"Creating directory structure for: {dst}")
+            self.log.info(f"Creating directory structure for: {dst}")
             dst.mkdir(parents=True, exist_ok=True)
 
     def _outp_check_user(self):
-        self.inf(0, f"The output dir '{self.output_pt}' exists already. If we "
-                 "proceed the content will be replaced!", m_sort='cau')
+        """This offers the choice to proceed and erase the old output-dir or to quit."""
+        self.log.warning(f"The output dir '{self.output_pt}' exists already. If"
+                         " we proceed the content will be replaced!")
         while True:
             userinp = input("Proceed? Choose y|yes or n|no : ").lower()
 
@@ -231,6 +367,8 @@ class D2p(D2p_Common):
                     break
                 case 'n' | 'no':
                     self._exit()
+                case _:
+                    self.log.warning("Not a allowed choice! Try again.")
 
         self._dispose(outp=True)
 
@@ -268,6 +406,14 @@ class D2p(D2p_Common):
                 self._make_dirstruct(dst.parent)
                 shutil.copy2(src, dst)
 
+    def calc_patch_data(self):
+        """Prepairs the patch list from the diff-survey dict and lets mesasure the
+        expected patch size."""
+        self.patch_lst = [*self.cmp_survey['new'],
+                          *self.cmp_survey['diff'],
+                          *self.cmp_survey['sketchy']]
+        self.get_patchsize(self.patch_lst)
+
     def run(self):
         """Controls and executes the collection of files in tmp."""
         self.d2p_tmp_dir = pt(tempfile.mkdtemp(
@@ -276,60 +422,17 @@ class D2p(D2p_Common):
         self._gather_difftree()
 
         if self._void_dir(self.d2p_tmp_dir):
-            self.inf(2, "No files for a patch collected.")
+            self.log.warning("No files for a patch collected.")
         else:
-            self.inf(2, f"Collected {D2p_Common.count['fl_total']} patch files in "
-                     f"{self.output_pt!s}")
+            self.log.info(f"Collected {self.count['fl_total']} patch files.")
 
 
-def _print_to(label, inp_lst, log_handler):
-    """'Helper func which prints the report out."""
-    logging.basicConfig(format='%(message)s', level=logging.INFO, handlers=log_handler)
-    logging.info(f"\n{'-' * 80}\n{'#' * 10} {label} elements ###\n")
-
-    for entry in inp_lst:
-        logging.info(f"{label} {str(entry)}")
-
-
-def _print_diff(inp_lsts, report, output_pt):
-    """
-    This manages the printout of the diff report to the given target.
-    Available targets are:
-        stdout
-        file
-        both
-    """
-
-    rep_fn = f'd2p_report_{datetime.now().strftime("%d.%b.%Y_%H:%M:%S")}.txt'
-    out_f = output_pt.joinpath(rep_fn)
-    log_con = logging.StreamHandler(sys.stdout)
-    log_fle = logging.FileHandler(out_f, mode='a+', delay=True)
-
-    match report:
-        case 'console':
-            log_handler = (log_con, )
-        case 'file':
-            log_handler = (log_fle, )
-        case 'both':
-            log_handler = log_con, log_fle
-
-    # out_f = output_pt.joinpath(rep_fn) if report != 'console' else pt(
-    #     tempfile.gettempdir()).joinpath('d2p.dummy')
-    # out_f.unlink(missing_ok=True)
-
-    _print_to("Diff2patch report", '', log_handler)
-    _print_to("right only", inp_lsts.new_only_all, log_handler)
-    _print_to("diff", inp_lsts.diff_all, log_handler)
-    _print_to("funny", inp_lsts.funny_all, log_handler)
-
-
-def chk_indirs(inp):
+def chk_indir(inp):
     """Helper to check the input directorys for validity."""
     if not pt(inp).resolve(strict=True).is_dir():
-        raise NotADirectoryError(
-            f"Error: Input needs to be a directory path: {inp}")
-    # return pt(inp)
-
+        Log.log.critical(
+            f"Input needs to be a directory path: {inp}", exc_info=True)
+        raise NotADirectoryError
     return pt(inp)
 
 
@@ -374,15 +477,17 @@ def _parse_args():
         action='store_true',
         help='Compares the files content instead statinfos like size, date of'
         ' last change.')
+    aps.add_argument(
+        '-n', '--no_log',
         action='store_false',
-        help='Compares the files content instead stats like size, date of'
-        ' last change.')
-    # aps.add_argument(
-    #     '--verbose',
-    #     metavar='level [0-2]',
-    #     type=int,
-    #     choices=range(0, 3),
-    #     help='Amount of info output. 0:none, 2:much, default:1')
+        help='Deactivates the use of a logfile in the script path.')
+    aps.add_argument(
+        '-l', '--loglevel',
+        type=str,
+        default='NOTABLE',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help='Set minimum log-level for the console. Default is "info". Use "warning"'
+        ' or higher to reduce output.')
     aps.add_argument(
         '--version',
         action='version',
@@ -393,11 +498,24 @@ def _parse_args():
 def main(cfg):
     """Main block of the module with functionality for use on CLI."""
     if not sys.version_info[:2] >= (3, 10):
-        raise Exception("Must be executed in Python 3.10 or above.\n"
-                        "You are running {}".format(sys.version))
+        Log.log.critical("Must be executed in Python 3.10 or above.\n"
+                         "You are running {}".format(sys.version), exc_info=True)
+        raise Exception
 
-    chk_indirs(cfg.old)
-    chk_indirs(cfg.new)
+    dlg = Log
+    try:
+        dlg.init_log(report=cfg.report, output_pt=out_base_pt, logfile=cfg.no_log,
+                     loglevel=cfg.loglevel.upper())
+        dlg.log.setLevel('DEBUG')
+    except Exception:
+        dlg.log.critical("Problem while initialize logging.", exc_info=True)
+        raise Exception
+
+    mode = 'directory' if cfg.dir else 'archive' if cfg.archive else 'report'
+    dlg.log.notable(
+        f"{dlg._c('b_blu')}Start of diff2patch in {mode} mode."
+        f"{dlg._c('rst')}\n"
+        f"Comparing > DIR 1:{cfg.dir1} DIR 2:{cfg.dir2}")
 
     # TODO: Add verbosity functionallity to classes
     dtc = DirTreeCmp(cfg.old, cfg.new, shallow=cfg.indepth)
@@ -416,15 +534,21 @@ def main(cfg):
                 d2p._pack_difftree(cfg.archive)
             d2p._dispose()
         except OSError:
-            d2p.inf(0, "Problem as the output directory / archive was moved to"
-                    "destination or at the removal of the tempdir structure.", m_sort='cau')
+            d2p.log.error(
+                "Encountered a problem as the output directory / archive was moved to"
+                " destination or at the removal of the tempdir structure.",
+                exc_info=True)
         else:
-            d2p.inf(1, "The output of the diff content is in the path"
-                    f"{d2p.output_pt} to find.")
+            d2p.log.notable("The patch result of the diff task was written to path"
+                            f" {d2p.output_pt}.")
     else:
-        _print_diff(dtc, cfg.report, pt(cfg.new).parent)
+        d2p.print_diff()
+        d2p.log.notable("The diff report is done.")
 
-    d2p.inf(0, "Choosen task completed.")
+    d2p.log.notable(f"All {d2p.count['fl_total']} files of the patch content measure"
+                    f" to a unpacked size of {d2p.count['patch_size']}.")
+    d2p.log.info("Choosen diff2patch task completed.")
+    d2p._exit()
 
 
 if __name__ == "__main__":

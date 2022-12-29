@@ -78,3 +78,4 @@ operable/**
 # _storage/**
 # ur_tools/**
 readme.md
+*.log

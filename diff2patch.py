@@ -35,7 +35,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.8.0-alpha'
+__version__ = '0.9.0-alpha'
 
 __all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
@@ -182,10 +182,41 @@ class D2pCommon:
         sys.exit(0)
 
 
-            print(textwrap.fill(msg, width=90, initial_indent=ind1,
-                  subsequent_indent=ind2))
+    @staticmethod
+    def _get_filesize(inp):
+        """Returns the size of a pathlike in bytes."""
+        return inp.stat(follow_symlinks=False).st_size
 
+    @classmethod
+    def get_patchsize(cls, inp):
+        """
+        Measures and returns the size of the patch in binary units.
+        Input must be a list of pathlikes as values.
+        """
+        size = 0
+        try:
+            for entry in inp:
+                if entry.is_file() and not entry.is_symlink():
+                    size += cls._get_filesize(entry)
+                elif entry.is_dir():
+                    for ele in entry.rglob('*'):
+                        size += cls._get_filesize(ele)
+                else:
+                    cls.log.warning("Irregular path entry in `get_patchsize` method:"
+                                    f"{entry}")
 
+        except Exception:
+            cls.log.error("Encountered a problem while measuring the patchsize.",
+                          exc_info=True)
+            cls.count['patch_size'] = 'ERROR'
+        else:
+            for unit in ('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'):
+                if size < 1024:
+                    break
+                size /= 1024
+            cls.count['patch_size'] = f"{size:.2f}{unit}"
+            # CONTROL PRINT
+            print(f"GET SIZE count: {cls.count['patch_size']}")
 
 
 class DirTreeCmp(D2pCommon, Log):
@@ -523,7 +554,7 @@ def main(cfg):
 
     d2p = D2p(survey, cfg.new, out_base_pt=cfg.outpath)
     # control print
-    print(f"config arch:  {cfg}")
+    d2p.calc_patch_data()
 
     if cfg.dir or cfg.archive:
         d2p.run()

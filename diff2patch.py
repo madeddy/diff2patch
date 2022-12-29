@@ -41,7 +41,9 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.12.0-alpha'
+__version__ = '0.13.0-alpha'
+__url__ = "https://github.com/madeddy/diff2patch"
+
 
 __all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
@@ -407,6 +409,8 @@ class DirTreeCmp(D2pCommon, Log):
             self.dir1, self.dir2, self.mutual_files, self.shallow)
 
     def phase4(self):
+        """Recurses into bilateral subdirectorys and calls for every pair a new compare
+        instance."""
         self.subdirs = {}
         for _cd in self.mutual_dirs:
             cd_l = self.dir1.joinpath(_cd)
@@ -425,13 +429,14 @@ class DirTreeCmp(D2pCommon, Log):
         self.sketchy_all.extend(self._process_hits(self.sketchy_files))
 
     def _recursive_cmp(self):
-        """Lets the instance iterate recursively through the dir tree."""
+        """This method executes a self-instanciating recursive iteration through the dir
+        tree and collects the outcome of every level."""
         self._gather_inst_hits()
         for self.cmp_inst in self.subdirs.values():
             self.cmp_inst._recursive_cmp()
 
     def run_compare(self):
-        """Controls the compare process and returns the outcome."""
+        """Controls some steps of compare process and returns the outcome."""
         self._recursive_cmp()
         if self.sketchy_all:
             # NOTE: perhaps do something with this e.g. deeper checks, warns
@@ -565,8 +570,7 @@ class D2p(D2pCommon, Log):
         self.log.warning(f"The output dir '{self.output_pt}' exists already. If"
                          " we proceed the content will be replaced!")
         while True:
-            userinp = input("Proceed? Choose y|yes or n|no : ").lower()
-
+            userinp = input("Choose y|yes to proceed or n|no to exit : ").lower()
             match userinp:
                 case 'y' | 'yes':
                     break
@@ -604,7 +608,7 @@ class D2p(D2pCommon, Log):
         self.get_patchsize(self.patch_lst)
 
     def run(self):
-        """Controls and executes the collection of files in tmp."""
+        """Controls the process of generating a patch from the diff-patch lists."""
         self.d2p_tmp_dir = pt(tempfile.mkdtemp(
             prefix='Diff2Patch.', suffix='.tmp'))
         self._make_output()

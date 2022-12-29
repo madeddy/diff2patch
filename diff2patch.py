@@ -36,7 +36,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.6.0-alpha'
+__version__ = '0.7.0-alpha'
 
 
 # TODO:
@@ -330,6 +330,8 @@ def chk_indirs(inp):
             f"Error: Input needs to be a directory path: {inp}")
     # return pt(inp)
 
+    return pt(inp)
+
 
 def _parse_args():
     """Gets the args if CLI is used."""
@@ -339,12 +341,12 @@ def _parse_args():
     aps.add_argument(
         'old',
         action='store',
-        type=str,
+        type=chk_indir,
         help='Old/left directory')
     aps.add_argument(
         'new',
         action='store',
-        type=str,
+        type=chk_indir,
         help='New/right directory')
     opts = aps.add_mutually_exclusive_group(required=True)
     opts.add_argument(
@@ -364,11 +366,14 @@ def _parse_args():
     aps.add_argument(
         '-o', '--outpath',
         action='store',
-        type=str,
+        type=pt,
         help='Output path name for the diff result. Defaults to the parent dir'
         ' of <new> if not given.')
     aps.add_argument(
         '-i', '--indepth',
+        action='store_true',
+        help='Compares the files content instead statinfos like size, date of'
+        ' last change.')
         action='store_false',
         help='Compares the files content instead stats like size, date of'
         ' last change.')

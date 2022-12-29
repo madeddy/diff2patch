@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.13.0-alpha'
+__version__ = '0.14.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -680,8 +680,8 @@ def _parse_args():
         '-l', '--loglevel',
         type=str,
         default='NOTABLE',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        help='Set minimum log-level for the console. Default is "info". Use "warning"'
+        choices=['DEBUG', 'INFO', 'NOTABLE', 'WARNING', 'ERROR', 'CRITICAL'],
+        help='Set minimum log-level for the console. Default is "notable". Use "warning"'
         ' or higher to reduce output.')
     aps.add_argument(
         '--version',

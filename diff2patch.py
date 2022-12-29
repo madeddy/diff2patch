@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 """
-Diff2patch is a tool which compares two directorys trees, e.g old/new, and
-produces another directory, which contains all different or in the second dir
-added objects.
+Diff2patch is a tool which compares two directorys trees, e.g dir1/dir2, and
+compiles a set of lists with the findings.
+From this can be made another directory or archive, which contains all different or in the second dir added objects. A written report is also possible.
 """
 
 import sys
@@ -15,21 +15,28 @@ import logging
 import textwrap
 from datetime import datetime
 
+# NOTE: A alternate to ctypes is apparently undocumented sys call to win which
+# activates also color support
+# https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/color
 tty_colors = True
 if sys.platform.startswith('win32'):
     if sys.getwindowsversion()[2] < 16257:
+
         try:
-            from colorama import init
-            init(autoreset=True)
+            from ctypes import windll
+            # os.system('color')  # untested
         except ImportError:
             tty_colors = False
+        else:
+            k = windll.kernel32
+            k.SetConsoleMode(k.GetStdHandle(-11), 7)
 
 
 __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.5.0-alpha'
+__version__ = '0.6.0-alpha'
 
 
 # TODO:

@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.16.0-alpha'
+__version__ = '0.17.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -199,10 +199,18 @@ class D2pCommon:
         """Helper to check if given path exist."""
         return pt(inp).resolve(strict)
 
-    @staticmethod
-    def _get_filesize(inp):
+    @classmethod
+    def _calc_filedata(cls, inp):
         """Returns the size of a pathlike in bytes."""
-        return inp.stat(follow_symlinks=False).st_size
+        if inp.is_file() and not inp.is_symlink():
+            cls.count['fl_total'] += 1
+            return inp.stat(follow_symlinks=False).st_size
+        elif inp.is_dir():
+            cls.count['dirs_total'] += 1
+        else:
+            cls.log.warning("Irregular path entry in `get_patchsize` method:"
+                            f"{inp}")
+        return 0
 
     @classmethod
     def get_patchsize(cls, inp):
@@ -213,14 +221,11 @@ class D2pCommon:
         size = 0
         try:
             for entry in inp:
-                if entry.is_file() and not entry.is_symlink():
-                    size += cls._get_filesize(entry)
-                elif entry.is_dir():
+                if entry.is_dir():
+                    cls.count['dirs_total'] += 1
                     for ele in entry.rglob('*'):
-                        size += cls._get_filesize(ele)
-                else:
-                    cls.log.warning("Irregular path entry in `get_patchsize` method:"
-                                    f"{entry}")
+                        size += cls._calc_filedata(ele)
+                size += cls._calc_filedata(entry)
 
         except Exception:
             cls.log.error("Encountered a problem while measuring the patchsize.",
@@ -455,7 +460,6 @@ class DirTreeCmp(D2pCommon, Log):
         self.count['diff_found'] += len(self.diff_all)
         self.count['new_found'] += len(self.dir2_only_all)
         self.count['sketchy_found'] += len(self.sketchy_all)
-        self.count['fl_total'] += sum(list(self.count.values())[:3])
         self.log.info(f"We found {self.count['diff_found']} different files,"
                       f" {self.count['new_found']} additional files in directory 2"
                       f" and {self.count['sketchy_found']} non comparable files.")
@@ -743,8 +747,9 @@ def main(cfg):
         d2p.print_diff()
         d2p.log.notable("The diff report is done.")
 
-    d2p.log.notable(f"All {d2p.count['fl_total']} files of the patch content measure"
-                    f" to a unpacked size of {d2p.count['patch_size']}.")
+    d2p.log.notable(f"The patch content with {d2p.count['fl_total']} files and"
+                    f" {d2p.count['dirs_total']} directories measures to a unpacked"
+                    f" size of {d2p.count['patch_size']}.")
     d2p.log.info("Choosen diff2patch task completed.")
     d2p._exit()
 

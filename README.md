@@ -1,12 +1,15 @@
 # diff2patch
 A python tool to compare two directorys and composes a survey-list with all found
 differences. These can then used to:
+- compose a patch with all different and in dir2 new files. The content can be output:
+  - as simple directory tree
+  - as archive of types: lzma, gzip, bzip2, zip, tar
 - give a report in different forms:
-  - written to terminal
+  - printed to terminal
   - written to a text-file
-  - both 
-- compose a patch with all different and in dir2 new files
-Said patch content can be written as simple directory or archive.
+  - both
+
+The file/directory count and the expected patch size is also calculated. 
 
 ## Dependencys
 - python 3.10 or newer

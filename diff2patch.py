@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.15.0-alpha'
+__version__ = '0.16.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -69,7 +69,10 @@ class Log:
                 'cya': '\x1b[36m',  # cyan
                 'b_blu': '\x1b[44;30m',  # background blue
                 'b_red': '\x1b[45;30m',  # background red
-                'b_wht': '\x1b[47;30m'}  # background white
+                'b_wht': '\x1b[47;30m',  # background white
+                'ret': '\x1b[10D\x1b[1A\x1b[K'}  # write on same line
+    # (xD - x rows left, xA - x lines up, K - erase line)
+
     colormap.update((k, '') for k in colormap if not tty_colors)
 
     class ColorFormatter(logging.Formatter):
@@ -173,7 +176,7 @@ class D2pCommon:
              'new_found': 0,
              'sketchy_found': 0,
              'fl_total': 0,
-             'fl_done': 0,
+             'dirs_total': 0,
              'patch_size': None}
 
     @classmethod
@@ -187,7 +190,7 @@ class D2pCommon:
         cls.log.notable("Exiting Diff2Patch.\n")
         for i in range(10, -1, -1):
             cls.log.warning(
-                f"{cls._c('b_red')}< {i} >{cls._c('rst')} \x1b[10D\x1b[1A\x1b[K")
+                f"{cls._c('b_red')}< {i} >{cls._c('rst')} {cls._c('ret')}")
             sleep(0.2)
         sys.exit(0)
 
@@ -546,9 +549,10 @@ class D2p(D2pCommon, Log):
     def _mv_tmp2outdir(self):
         """Moves temporary content to real output."""
         # FIXME: move does error if src exists in dst; how?
+        fl_done = 0
         for entry in self.d2p_tmp_dir.iterdir():
-            self.count['fl_done'] += 1
-            num, tot, obj = self.count['fl_done'], self.count['fl_total'], entry
+            fl_done += 1
+            num, tot, obj = fl_done, self.count['fl_total'], entry
             # CONTROL PRINT
             # print(f"MV_TMP2OUTDIR: {num, tot, obj}")
             self.log.info(f"{self.telltale(num, tot, obj)}")

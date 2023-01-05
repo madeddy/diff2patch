@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.17.0-alpha'
+__version__ = '0.18.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -573,27 +573,26 @@ class D2p(D2pCommon, Log):
             self.log.info(f"Creating directory structure for: {dst}")
             dst.mkdir(parents=True, exist_ok=True)
 
-    def _outp_check_user(self):
-        """This offers the choice to proceed and erase the old output-dir or to quit."""
-        self.log.warning(f"The output dir '{self.output_pt}' exists already. If"
-                         " we proceed the content will be replaced!")
-        while True:
-            userinp = input("Choose y|yes to proceed or n|no to exit : ").lower()
-            match userinp:
-                case 'y' | 'yes':
-                    break
-                case 'n' | 'no':
-                    self._exit()
-                case _:
-                    self.log.warning("Not a allowed choice! Try again.")
-
-        self._dispose(outp=True)
-
-    def _make_output(self):
-        """Constructs outdir path and structure."""
-        self.output_pt = self.out_base_pt / self.outdir_name
+    def _check_output_exists(self):
+        """Tests if the d2p-output already exists and if, checks with the user how to
+        proceed. Choices are to erase the old output-dir or to quit."""
         if self.output_pt.exists() and not self._void_dir(self.output_pt):
-            self._outp_check_user()
+            self.log.warning(f"The output dir '{self.output_pt}' exists already. If"
+                             " we proceed the content will be replaced!")
+
+            while True:
+                userinp = input("Choose y|yes to proceed or n|no to exit : ").lower()
+                match userinp:
+                    case 'y' | 'yes':
+                        break
+                    case 'n' | 'no':
+                        self._exit()
+                    case _:
+                        self.log.warning("Not a allowed choice! Try again.")
+
+            self._dispose(outp=True)
+
+
 
     def _gather_patchtree(self):
         """Copys the differing objects to the temp outdir path."""
@@ -619,8 +618,9 @@ class D2p(D2pCommon, Log):
         """Controls the process of generating a patch from the diff-patch lists."""
         self.d2p_tmp_dir = pt(tempfile.mkdtemp(
             prefix='Diff2Patch.', suffix='.tmp'))
-        self._make_output()
-        self._make_dirstruct(self.output_pt)
+            self.output_pt = self.out_base_pt / self.outdir_name
+            self._check_output_exists()
+            self._make_dirstruct(self.output_pt)
 
         self._gather_patchtree()
 

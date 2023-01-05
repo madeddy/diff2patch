@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.21.0-alpha'
+__version__ = '0.22.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -205,47 +205,6 @@ class D2pCommon:
     def check_inpath(inp, strict=True):
         """Helper to check if given path exist."""
         return pt(inp).resolve(strict)
-
-    @classmethod
-    def _calc_filedata(cls, inp):
-        """Returns the size of a pathlike in bytes."""
-        if inp.is_file() and not inp.is_symlink():
-            cls.count['fl_total'] += 1
-            return inp.stat(follow_symlinks=False).st_size
-        elif inp.is_dir():
-            cls.count['dirs_total'] += 1
-        else:
-            cls.log.warning("Irregular path entry in `get_patchsize` method:"
-                            f"{inp}")
-        return 0
-
-    @classmethod
-    def get_patchsize(cls, inp):
-        """
-        Measures and returns the size of the patch in binary units.
-        Input must be a list of pathlikes as values.
-        """
-        size = 0
-        try:
-            for entry in inp:
-                if entry.is_dir():
-                    cls.count['dirs_total'] += 1
-                    for ele in entry.rglob('*'):
-                        size += cls._calc_filedata(ele)
-                size += cls._calc_filedata(entry)
-
-        except Exception:
-            cls.log.error("Encountered a problem while measuring the patchsize.",
-                          exc_info=True)
-            cls.count['patch_size'] = 'ERROR'
-        else:
-            for unit in ('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'):
-                if size < 1024:
-                    break
-                size /= 1024
-            cls.count['patch_size'] = f"{size:.2f}{unit}"
-            # CONTROL PRINT
-            print(f"GET SIZE count: {cls.count['patch_size']}")
 
 
 class DirTreeCmp(D2pCommon, Log):
@@ -512,11 +471,54 @@ class D2p(D2pCommon, Log):
             out_base_pt)
         self.mock_mode = mock_mode
 
+    def _calc_filedata(self, inp, only_size=False):
+        """Returns the size of a pathlike in bytes."""
+        if inp.is_file() and not inp.is_symlink():
+            if not only_size:
+                self.count['fl_total'] += 1
+            return inp.stat(follow_symlinks=False).st_size
+        elif inp.is_dir():
+            if not only_size:
+                self.count['dirs_total'] += 1
+        else:
+            self.log.warning("Irregular path entry while calculating patch-data:"
+                             f"{inp}")
+        return 0
+
+    def calc_patch_data(self, inp, only_size=False):
+        """
+        Measures and returns the size of the patch in binary units.
+        Input must be a list of pathlikes as values.
+        """
+        size = 0
+        try:
+            if not only_size:
+                for ele in inp.rglob('*'):
+                    size += self._calc_filedata(ele)
+            else:
+                for entry in inp:
+                    if entry.is_dir():
+                        for ele in entry.rglob('*'):
+                            size += self._calc_filedata(ele, only_size=True)
+                    else:
+                        size += self._calc_filedata(entry, only_size=True)
+
+        except Exception:
+            self.log.error("Encountered a problem while measuring the patchsize.",
+                           exc_info=True)
+            self.count['patch_size'] = 'ERROR'
+        else:
+            for unit in ('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'):
+                if size < 1024:
+                    break
+                size /= 1024
+            self.count['patch_size'] = f"{size:.2f}{unit}"
+
     def _print_proxy(self, header=None, inf=None, label=None, survey_lst=None):
         """Helper func which prints the report variant out."""
         if header:
             self.log.notable(
-                f"\n{'-' * 80}\n{'#' * 10} {header} elements ###\n")
+                f"\n{'-' * 100}\n{'#' * 10} {header} ###\n")
         if inf:
             self.log.notable(f"{inf}")
 
@@ -529,7 +531,6 @@ class D2p(D2pCommon, Log):
 
     def print_diff(self):
         """This manages the printout of the diff report."""
-
         self.calc_patch_data(self.patch_lst, only_size=True)
 
         self._print_proxy(
@@ -537,21 +538,21 @@ class D2p(D2pCommon, Log):
             inf=f"Comparison directories >> FROM: {self.cmp_survey['dir1']}"
                 f" TO: {self.cmp_survey['dir2']}")
         self._print_proxy(
-            header="Directory-2-only",
+            header="Directory-2-only elements",
             label="New: ",
             survey_lst=self.cmp_survey['new'])
         self._print_proxy(
-            header="Different",
+            header="Different elements",
             label="Diff: ",
             survey_lst=self.cmp_survey['diff'])
         self._print_proxy(
             header="Unidentified",
-            label="Sketchy: ",
+            label="Sketchy elements: ",
             survey_lst=self.cmp_survey['sketchy'])
         self._print_proxy(
-            inf="\nEnd of the d2p report.\n"
-            "Please note: The report has always less path elements as the complete"
-            "dir-tree, because only the minimal mutual path is stored.")
+            header="End of the D2P report",
+            inf="Please note: The report has always less path elements as the complete"
+            " dir-tree, because only the minimal mutual path is stored.")
 
     def _dispose(self, outp=False):
         """Removes temporary dir/content and the output_pt."""

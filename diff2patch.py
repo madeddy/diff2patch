@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.20.0-alpha'
+__version__ = '0.21.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -504,12 +504,13 @@ class D2p(D2pCommon, Log):
     outdir_name = 'diff2patch_out'
     output_pt = None
 
-    def __init__(self, cmp_survey, dir2_pt, out_base_pt=None):
+    def __init__(self, cmp_survey, dir2_pt, out_base_pt=None, mock_mode=False):
         self.cmp_survey = cmp_survey
         self.patch_lst = list()
         self.inp_pt = self.check_inpath(dir2_pt)
         self.out_base_pt = self.inp_pt.parent if not out_base_pt else self.check_inpath(
             out_base_pt)
+        self.mock_mode = mock_mode
 
     def _print_proxy(self, header=None, inf=None, label=None, survey_lst=None):
         """Helper func which prints the report variant out."""
@@ -611,7 +612,19 @@ class D2p(D2pCommon, Log):
 
             self._dispose(outp=True)
 
+    @staticmethod
+    def _mockcopy(_, dst):
+        """
+        This is a mock of the copy function for use in shutil.copytree, which produces
+        zero-size files to save time and other ressources.
 
+        We construct a complete mock-tree representation of the patch because in
+        report-mode we cannot calculate the file/dir count correct, since `dirtreecmp`
+        yields just parts of a dirtree as `patch_list`. This way we circumvent the
+        problem and the output is simply thrown away after use.
+        """
+        pt(dst).touch()
+        return dst
 
     def _gather_patchtree(self):
         """Copys the differing objects to the temp outdir path."""
@@ -620,29 +633,39 @@ class D2p(D2pCommon, Log):
             dst = self.d2p_tmp_dir.joinpath(rel_src)
 
             if src.is_dir():
-                shutil.copytree(src, dst, dirs_exist_ok=True)
+                if not self.mock_mode:
+                    shutil.copytree(src, dst, dirs_exist_ok=True)
+                else:
+                    shutil.copytree(src, dst, dirs_exist_ok=True,
+                                    copy_function=self._mockcopy)
             elif src.is_file():
                 self._make_dirstruct(dst.parent)
-                shutil.copy2(src, dst)
+                if not self.mock_mode:
+                    shutil.copy2(src, dst)
+                else:
+                    dst.touch()
 
-    def calc_patch_data(self):
+    def compile_patch_list(self):
         """Prepairs the patch list from the diff-survey dict and lets mesasure the
         expected patch size."""
         self.patch_lst = [*self.cmp_survey['new'],
                           *self.cmp_survey['diff'],
                           *self.cmp_survey['sketchy']]
-        self.get_patchsize(self.patch_lst)
 
     def run(self):
         """Controls the process of generating a patch from the diff-patch lists."""
         self.d2p_tmp_dir = pt(
             tempfile.mkdtemp(prefix='Diff2Patch.', suffix='.tmp'))
         self.log.critical(f"The temporary dir {self.d2p_tmp_dir} was successful made.")
+
+        if not self.mock_mode:
             self.output_pt = self.out_base_pt / self.outdir_name
             self._check_output_exists()
             self._make_dirstruct(self.output_pt)
 
+        self.compile_patch_list()
         self._gather_patchtree()
+        self.calc_patch_data(self.d2p_tmp_dir)
 
         if self._void_dir(self.d2p_tmp_dir):
             self.log.warning("No files for a patch collected.")
@@ -746,17 +769,16 @@ def main(cfg):
     dtc = DirTreeCmp(cfg.dir1, cfg.dir2, shallow=cfg.indepth)
     survey = dtc.run_compare()
 
-    d2p = D2p(survey, cfg.dir2, out_base_pt=cfg.outpath)
-    d2p.calc_patch_data()
+    mock_mode = True if cfg.report else False
+    d2p = D2p(survey, cfg.dir2, out_base_pt=cfg.outpath, mock_mode=mock_mode)
+    d2p.run()
 
     if cfg.dir or cfg.archive:
-        d2p.run()
         try:
             if cfg.dir:
                 d2p._mv_tmp2outdir()
             elif cfg.archive:
                 d2p._pack_difftree(cfg.archive)
-            d2p._dispose()
         except OSError:
             d2p.log.error(
                 "Encountered a problem as we attempted to move the patch to"
@@ -769,6 +791,12 @@ def main(cfg):
         diff_target = cfg.report if cfg.report != "both" else "terminal and file"
         d2p.log.notable("The composition of the diff report is done and was written to"
                         f" {diff_target}.")
+
+    try:
+        d2p._dispose()
+    except OSError:
+        dlg.log.error(
+            "Problem while trying to remove the tempdir structure.", exc_info=True)
 
     d2p.log.notable(
         f"The patch content with {d2p.count['fl_total']} files and"

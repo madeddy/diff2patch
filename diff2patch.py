@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.18.0-alpha'
+__version__ = '0.19.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -504,33 +504,46 @@ class D2p(D2pCommon, Log):
         self.out_base_pt = self.inp_pt.parent if not out_base_pt else self.check_inpath(
             out_base_pt)
 
-    def _print_proxy(self, header, label, survey_lst):
+    def _print_proxy(self, header=None, inf=None, label=None, survey_lst=None):
         """Helper func which prints the report variant out."""
-        self.log.notable(f"\n{'-' * 80}\n{'#' * 10} {header} elements ###\n")
+        if header:
+            self.log.notable(
+                f"\n{'-' * 80}\n{'#' * 10} {header} elements ###\n")
+        if inf:
+            self.log.notable(f"{inf}")
 
-        for entry in survey_lst:
-            self.log.notable(f"{label}{str(entry)}")
+        if survey_lst:
+            survey_lst.sort()
+            for num, entry in enumerate(survey_lst, start=1):
+                self.log.notable(f"{label}#{num} > {str(entry)}")
+        elif survey_lst is not None:
+            self.log.notable(f"{label}No entrys.")
 
     def print_diff(self):
         """This manages the printout of the diff report."""
 
+        self.calc_patch_data(self.patch_lst, only_size=True)
+
         self._print_proxy(
-            "Diff2patch report",
-            '',
-            [f"Comparison directories >>"
-             f" FROM: {self.cmp_survey['dir1']} TO: {self.cmp_survey['dir2']}"])
+            header="Diff2patch report",
+            inf=f"Comparison directories >> FROM: {self.cmp_survey['dir1']}"
+                f" TO: {self.cmp_survey['dir2']}")
         self._print_proxy(
-            "Directory-2-only",
-            "New: ",
-            self.cmp_survey['new'])
+            header="Directory-2-only",
+            label="New: ",
+            survey_lst=self.cmp_survey['new'])
         self._print_proxy(
-            "Different",
-            "Diff: ",
-            self.cmp_survey['diff'])
+            header="Different",
+            label="Diff: ",
+            survey_lst=self.cmp_survey['diff'])
         self._print_proxy(
-            "Unidentified",
-            "Sketchy: ",
-            self.cmp_survey['sketchy'])
+            header="Unidentified",
+            label="Sketchy: ",
+            survey_lst=self.cmp_survey['sketchy'])
+        self._print_proxy(
+            inf="\nEnd of the d2p report.\n"
+            "Please note: The report has always less path elements as the complete"
+            "dir-tree, because only the minimal mutual path is stored.")
 
     def _dispose(self, outp=False):
         """Removes temporary content and the output_pt if empty."""

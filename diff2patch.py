@@ -10,7 +10,7 @@ Parts of the code of this tool shadows with changes to it pythons filecmp module
 import sys
 import argparse
 from types import GenericAlias
-from os.path import curdir, pardir
+from os import curdir, pardir
 from pathlib import Path as pt
 from operator import attrgetter
 from copy import copy
@@ -20,8 +20,8 @@ import shutil
 import logging
 from time import strftime, localtime, sleep
 
-# NOTE: A alternate to ctypes is apparently undocumented sys call to win which
-# activates also color support
+# NOTE: The os.system alternate to ctypes is apparently a undocumented sys call to win
+# which activates also color support
 # https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/color
 tty_colors = True
 if sys.platform.startswith('win32'):
@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.19.0-alpha'
+__version__ = '0.20.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -49,6 +49,7 @@ __all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
 
 # TODO:
+# test patch calc functionality some more
 # IDEA: Add abbility to output other cmp lists(like filecmp)
 
 class Log:
@@ -70,8 +71,8 @@ class Log:
                 'b_blu': '\x1b[44;30m',  # background blue
                 'b_red': '\x1b[45;30m',  # background red
                 'b_wht': '\x1b[47;30m',  # background white
-                'ret': '\x1b[10D\x1b[1A\x1b[K'}  # write on same line
-    # (xD - x rows left, xA - x lines up, K - erase line)
+                'ret': '\x1b[10D\x1b[1A\x1b[K'}  # write on same line: (xD - x rows left,
+    # xA - x lines up, K - erase line)
 
     colormap.update((k, '') for k in colormap if not tty_colors)
 
@@ -181,7 +182,13 @@ class D2pCommon:
 
     @classmethod
     def telltale(cls, fraction, total, obj):
-        """Returns a percentage-meter like output for use in tty."""
+        """
+        Returns a percentage-meter like output for use in tty.
+        Arguments:
+            fraction:   Count of already worked objects; start usually with zero
+            total:      The full amount objects to work through
+            obj:        The current object in work
+        """
         return (f"[{cls._c('b_blu')}{fraction / float(total):05.1%}"
                 f"{cls._c('rst')}] {obj!s:>4}")
 
@@ -546,7 +553,7 @@ class D2p(D2pCommon, Log):
             "dir-tree, because only the minimal mutual path is stored.")
 
     def _dispose(self, outp=False):
-        """Removes temporary content and the output_pt if empty."""
+        """Removes temporary dir/content and the output_pt."""
         if self.d2p_tmp_dir:
             shutil.rmtree(self.d2p_tmp_dir)
         if outp:
@@ -570,8 +577,7 @@ class D2p(D2pCommon, Log):
         for entry in self.d2p_tmp_dir.iterdir():
             fl_done += 1
             num, tot, obj = fl_done, self.count['fl_total'], entry
-            # CONTROL PRINT
-            # print(f"MV_TMP2OUTDIR: {num, tot, obj}")
+
             self.log.info(f"{self.telltale(num, tot, obj)}")
             shutil.move(entry, self.output_pt)
 
@@ -629,8 +635,9 @@ class D2p(D2pCommon, Log):
 
     def run(self):
         """Controls the process of generating a patch from the diff-patch lists."""
-        self.d2p_tmp_dir = pt(tempfile.mkdtemp(
-            prefix='Diff2Patch.', suffix='.tmp'))
+        self.d2p_tmp_dir = pt(
+            tempfile.mkdtemp(prefix='Diff2Patch.', suffix='.tmp'))
+        self.log.critical(f"The temporary dir {self.d2p_tmp_dir} was successful made.")
             self.output_pt = self.out_base_pt / self.outdir_name
             self._check_output_exists()
             self._make_dirstruct(self.output_pt)
@@ -725,8 +732,10 @@ def main(cfg):
                      loglevel=cfg.loglevel.upper())
         dlg.log.setLevel('DEBUG')
     except Exception:
-        dlg.log.critical("Problem while initialize logging.", exc_info=True)
+        dlg.log.critical("Problem while initializing logging.", exc_info=True)
         raise Exception
+
+    dlg.log.debug(f"ARGPARSE cfg: {cfg}")
 
     mode = 'directory' if cfg.dir else 'archive' if cfg.archive else 'report'
     dlg.log.notable(
@@ -750,19 +759,21 @@ def main(cfg):
             d2p._dispose()
         except OSError:
             d2p.log.error(
-                "Encountered a problem as the output directory / archive was moved to"
-                " destination or at the removal of the tempdir structure.",
-                exc_info=True)
+                "Encountered a problem as we attempted to move the patch to"
+                " destination.", exc_info=True)
         else:
             d2p.log.notable("The patch result of the diff task was written to path"
                             f" {d2p.output_pt}.")
     else:
         d2p.print_diff()
-        d2p.log.notable("The diff report is done.")
+        diff_target = cfg.report if cfg.report != "both" else "terminal and file"
+        d2p.log.notable("The composition of the diff report is done and was written to"
+                        f" {diff_target}.")
 
-    d2p.log.notable(f"The patch content with {d2p.count['fl_total']} files and"
-                    f" {d2p.count['dirs_total']} directories measures to a unpacked"
-                    f" size of {d2p.count['patch_size']}.")
+    d2p.log.notable(
+        f"The patch content with {d2p.count['fl_total']} files and"
+        f" {d2p.count['dirs_total']} directories measures to a unpacked size of"
+        f" {d2p.count['patch_size']}.")
     d2p.log.info("Choosen diff2patch task completed.")
     d2p._exit()
 

@@ -17,9 +17,9 @@ The file/directory count and the expected patch size is also calculated.
 For terminal colors in info messages: With early `Windows 10` and before could it be
 necessary to change a few config settings to make it work.
 
-Colors just a fancfull addition and it works without it. Some people might want it. There
-are also other ways like _ansicon_ or the use of Windows terminal, where ANSI already
-integrated is. (code changes needed)
+Colors just a fancfull addition and the programm works without it. Some people might want
+it. There are also other ways like _ansicon_ or the use of Windows terminal, where ANSI
+already integrated is. (needs possibly terminal-setup changes)
 
 ## Usage
 ### Command line parameter overview
@@ -27,7 +27,7 @@ integrated is. (code changes needed)
 diff2patch.py [-h] (-d | -a {xz,gz,bz2,zip,tar} | -r {console,file,both}) [-o OUTPATH]
 [-i] [-n] [-l] [--version] dir1 dir2
 
-Generates a diff patch or overview of two given directory structures.
+Generates a diff-patch or diff-overview of two given directory structures.
 
 positional arguments:
 dir1                    Dir 1/left directory

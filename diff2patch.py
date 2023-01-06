@@ -2,7 +2,7 @@
 """
 Diff2patch is a tool which compares two directorys trees, e.g dir1/dir2, and
 compiles a set of lists with the findings.
-From this can be made another directory or archive, which contains all different or in the second dir added objects. A written report is also possible.
+From this result can another directory or archive constructed, which contains all different or in the second dir added objects. A written report is also possible.
 
 Parts of the code of this tool shadows with changes to it pythons filecmp module.
 """
@@ -41,7 +41,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.22.0-alpha'
+__version__ = '0.23.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -53,7 +53,7 @@ __all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 # IDEA: Add abbility to output other cmp lists(like filecmp)
 
 class Log:
-    """This configures and inits all logging for the module."""
+    """This configures and initiates all logging functionality for the module."""
 
     log = None
     colormap = {'rst': '\x1b[0m',  # reset
@@ -101,24 +101,30 @@ class Log:
             return self._style.format(col_record)
 
     class _ReportFilter(logging.Filter):
-        """Allows in the handler where its used only output from  the `_print_proxy`
-        method."""
+        """
+        Filter subclass which restricts the output of the handler where it is used to a
+        certain method. Can be reversed.
+        """
 
         def __init__(self, reverse=False):
             self.rev = reverse
 
         def filter(self, record):
+            """Determines if a message orginates from the `_print_proxy` method."""
             res = record.funcName == '_print_proxy'
             return res if not self.rev else not res
 
     @classmethod
     def _c(cls, key):
-        """tf = Ansi Escape Sequence"""
+        """Delivers the correct ansi escape sequence to a color/effect name(key) from a
+        dict."""
         return cls.colormap[key]
 
     def _notable(self, msg, *args, **kwargs):
-        """Adds a custom logging level 'NOTABLE' with severity level 25, between
-        info(20) and warning(30)."""
+        """
+        Adds a custom logging level 'NOTABLE' with severity level 25, between
+        info(20) and warning(30).
+        """
         if self.isEnabledFor(25):
             self._log(25, msg, args, **kwargs)
 
@@ -209,7 +215,8 @@ class D2pCommon:
 
 class DirTreeCmp(D2pCommon, Log):
     """
-    This class compiles a diff object list of two given dirs for comparison.
+    This class compiles a diff-object dictionary with multiple list comparison results of
+    two given dirs.
     A modified version of dircmp is used where shallow can be choosen.
 
     dir1_only_all:  Files which exist only in the dir-tree of "dir1"  # unused for now
@@ -306,7 +313,8 @@ class DirTreeCmp(D2pCommon, Log):
         return outcome
 
     def cmp_dirfiles(self, d1, d2, mutual, shallow=True):
-        """Compares mutual files in two directories.
+        """
+        Compares mutual files in two directories.
 
         d1, d2 -- directory names
         mutual -- list of file names found in both directories
@@ -328,7 +336,10 @@ class DirTreeCmp(D2pCommon, Log):
         return res
 
     def _get_dirlist(self, inp_pt):
-        """Returns a list of all directory entrys without the occurences in skip."""
+        """
+        Helper which returns to phase0 a list of all directory entrys without the
+        occurences in skip.
+        """
         filtered_dl = [
             entry.relative_to(inp_pt) for entry in inp_pt.iterdir()
             if entry not in self.skip]
@@ -336,7 +347,9 @@ class DirTreeCmp(D2pCommon, Log):
         return filtered_dl
 
     def phase0(self):
-        """Lists for both dirs the content and filters excludet names out. Doesn't traverse inside subdirectories.
+        """
+        Lists for both dirs the content and filters excludet names out. Doesn't traverse
+        inside subdirectories.
         """
         self.dir1_list = self._get_dirlist(self.dir1)
         self.dir2_list = self._get_dirlist(self.dir2)
@@ -351,7 +364,7 @@ class DirTreeCmp(D2pCommon, Log):
         self.dir2_only = [entry for entry in d2_set.difference(d1_set)]
 
     def phase2(self):
-        """Distinguish from mutual content files, directories, unidentified."""
+        """Distinguish between mutual content files or directories or unidentified."""
         self.mutual_dirs = list()
         self.mutual_files = list()
         self.mutual_sketchy = list()
@@ -378,13 +391,14 @@ class DirTreeCmp(D2pCommon, Log):
                 self.mutual_sketchy.append(x)
 
     def phase3(self):
-        """Finds out differences between mutual files of a dir."""
+        """Detects and yields the differences between the mutual files of a directory."""
         self.diff_files, self.same_files, self.sketchy_files = self.cmp_dirfiles(
             self.dir1, self.dir2, self.mutual_files, self.shallow)
 
     def phase4(self):
-        """Recurses into bilateral subdirectorys and calls for every pair a new compare
-        instance."""
+        """
+        This method executes a self-instanciating recursive iteration into every pair of bilateral subdirectorys.
+        """
         self.subdirs = {}
         for _cd in self.mutual_dirs:
             cd_l = self.dir1.joinpath(_cd)
@@ -403,8 +417,11 @@ class DirTreeCmp(D2pCommon, Log):
         self.sketchy_all.extend(self._process_hits(self.sketchy_files))
 
     def _recursive_cmp(self):
-        """This method executes a self-instanciating recursive iteration through the dir
-        tree and collects the outcome of every level."""
+        """
+        Recursively traverses into bilateral subdirectorys, by calling for every level
+        below the last a new comparison instance and collects the outcome of every new
+        directory.
+        """
         self._gather_inst_hits()
         for self.cmp_inst in self.subdirs.values():
             self.cmp_inst._recursive_cmp()
@@ -530,7 +547,11 @@ class D2p(D2pCommon, Log):
             self.log.notable(f"{label}No entrys.")
 
     def print_diff(self):
-        """This manages the printout of the diff report."""
+        """
+        This manages all necesary steps for the printout of the diff report.
+        Executes patch size calculation again, because the mock dirtree cannot give
+        correct size info in the first run.
+        """
         self.calc_patch_data(self.patch_lst, only_size=True)
 
         self._print_proxy(
@@ -628,7 +649,7 @@ class D2p(D2pCommon, Log):
         return dst
 
     def _gather_patchtree(self):
-        """Copys the differing objects to the temp outdir path."""
+        """Copys the patch content with relative paths to the temp-dir."""
         for src in self.patch_lst:
             rel_src = src.relative_to(self.inp_pt)
             dst = self.d2p_tmp_dir.joinpath(rel_src)
@@ -647,8 +668,7 @@ class D2p(D2pCommon, Log):
                     dst.touch()
 
     def compile_patch_list(self):
-        """Prepairs the patch list from the diff-survey dict and lets mesasure the
-        expected patch size."""
+        """Prepairs the patch list from the diff-survey dict."""
         self.patch_lst = [*self.cmp_survey['new'],
                           *self.cmp_survey['diff'],
                           *self.cmp_survey['sketchy']]
@@ -657,7 +677,7 @@ class D2p(D2pCommon, Log):
         """Controls the process of generating a patch from the diff-patch lists."""
         self.d2p_tmp_dir = pt(
             tempfile.mkdtemp(prefix='Diff2Patch.', suffix='.tmp'))
-        self.log.critical(f"The temporary dir {self.d2p_tmp_dir} was successful made.")
+        self.log.debug(f"The temporary dir {self.d2p_tmp_dir} was successful made.")
 
         if not self.mock_mode:
             self.output_pt = self.out_base_pt / self.outdir_name

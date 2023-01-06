@@ -27,7 +27,7 @@ already integrated is. (needs possibly terminal-setup changes)
 diff2patch.py [-h] (-d | -a {xz,gz,bz2,zip,tar} | -r {console,file,both}) [-o OUTPATH]
 [-i] [-n] [-l] [--version] dir1 dir2
 
-Generates a diff-patch or diff-overview of two given directory structures.
+Generates a diff-patch or overview of two given directory structures.
 
 positional arguments:
 dir1                    Dir 1/left directory
@@ -54,15 +54,15 @@ Options:
 
 
 ### Example CLI usage
-Compares the two given dirs and places the difference to the default ouput directory.
 `python3 diff2patch.py -d /home/user/example/dir_v0.1 /home/user/example/dir_v0.2`
+Compares the two given dirs and places the difference in the default output directory.
 
-Compares two dirs, copies the difference to a dir und constructs a gzip archive from
-it. This is then placed in the given output path.
-`python3 diff2patch.py -a gz ~/example/dir_v0.1 ~/example/dir_v0.2 -o ~/outdir`
+`python3 diff2patch.py -a gz ~/example/dir_v0.5 ~/example/dir_v0.7 -o ~/example-outdir`
+Same as above, but constructs a archive(here a gzip) from it. This is then placed in the
+given output path.
 
+`python3 diff2patch.py -r console -i /some/path/dir_1 /some/path/dir_2`
 Compares and prints the found difference to the console window.
-`python3 diff2patch.py -r console /some/path/dir_1 /some/path/dir_2`
 
 <!-- ### Motivation -->
 

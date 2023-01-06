@@ -706,7 +706,7 @@ def chk_indir(inp):
 def _parse_args():
     """Gets the args if CLI is used."""
     aps = argparse.ArgumentParser(
-        description='Generates a diff patch or overview of two given directory'
+        description='Generates a diff-patch or overview of two given directory'
         ' structures.')
     aps.add_argument(
         'dir1',

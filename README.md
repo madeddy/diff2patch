@@ -12,13 +12,13 @@ differences. These can then used to:
 The file/directory count and the expected patch size is also calculated. 
 
 ## Dependencys
-- python 3.10 or newer
+- Python 3.10 or newer([1](#links))
 ### Optional
 For terminal colors in info messages: With early `Windows 10` and before could it be
 necessary to change a few config settings to make it work.
 
 Colors just a fancfull addition and the programm works without it. Some people might want
-it. There are also other ways like _ansicon_ or the use of Windows terminal, where ANSI
+it. There are also other ways like _ansicon_([2](#links)) or the use of Windows terminal([3](#links)), where ANSI
 already integrated is. (needs possibly terminal-setup changes)
 
 ## Usage
@@ -66,8 +66,13 @@ Compares and prints the found difference to the console window.
 
 <!-- ### Motivation -->
 
+## Links
+1. [Python.org](https://www.python.org/downloads)
+2. [ansicon](https://superuser.com/a/1105718)
+3. [Windows terminal](microsoft/terminal)
+
 ## Legal
 ### License
 
-__Diff2patch__ is licensed under Apache-2.0. See the [LICENSE](LICENSE) file for more
+__Diff2patch__ is licensed under Apache-2.0. See the [LICENSE.md](LICENSE.md) file for more
 details.

@@ -1,3 +1,6 @@
+# This varinat was never implemented on official py, but interesting
+# Taken from https://github.com/python/cpython/pull/27137
+
 """Utilities for comparing files and directories.
 
 Classes:

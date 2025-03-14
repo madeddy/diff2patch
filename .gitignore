@@ -74,8 +74,4 @@ $RECYCLE.BIN/
 *.lnk
 
 # user
-operable/**
-# _storage/**
-# ur_tools/**
-readme.md
 *.log

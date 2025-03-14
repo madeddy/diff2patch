@@ -19,7 +19,8 @@ Copyright 2023 madeddy
 
 Diff2patch is a tool which compares two directorys trees, e.g dir1/dir2, and
 compiles a set of lists with the findings.
-From this result can another directory or archive constructed, which contains all different or in the second dir added objects. A written report is also possible.
+From this result can another directory or archive constructed, which contains all different
+or in the second dir added objects. A written report is also possible.
 
 Parts of the code of this tool shadows with changes to it pythons filecmp module.
 """
@@ -28,9 +29,8 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.24.0-alpha'
+__version__ = '0.25.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
-__all__ = ['Log', 'D2pCommon', 'DirTreeCmp', 'D2p']
 
 import sys
 import argparse
@@ -160,20 +160,18 @@ class Log:
             con_h.addFilter(cls._ReportFilter(reverse=True))
         con_h.setLevel(loglevel)
         _formatter = cls.ColorFormatter if tty_colors else logging.Formatter
-        con_f = _formatter(
-            "[{name}][{levelname:>8s}] >> {message}")
+        con_f = _formatter("[{name}][{levelname:>8s}] >> {message}")
         con_h.setFormatter(con_f)
         cls.log.addHandler(con_h)
 
         # Add log-file handler if not disabled in CLI
         if logfile:
-            log_fh = logging.FileHandler(
-                pt(__file__).parent.resolve().joinpath('d2p.log'))
+            log_fh = logging.FileHandler(pt(__file__).parent.resolve().joinpath('d2p.log'))
             log_fh.addFilter(cls._ReportFilter(reverse=True))
             log_fh.setLevel('WARNING')
             log_ff = logging.Formatter(
-                "{asctime} - {name} - {levelname:>8s} - {message} - {filename}:"
-                "{lineno:d}", style='{')
+                "{asctime} - {name} - {levelname:>8s} - {message} - {filename}:{lineno:d}",
+                style='{')
             log_fh.setFormatter(log_ff)
             cls.log.addHandler(log_fh)
 
@@ -193,12 +191,14 @@ class D2pCommon:
     """This provides shared methods and variables for child classes."""
 
     name = __title__
-    count = {'diff_found': 0,
-             'new_found': 0,
-             'sketchy_found': 0,
-             'fl_total': 0,
-             'dirs_total': 0,
-             'patch_size': None}
+    count = {
+        'diff_found': 0,
+        'new_found': 0,
+        'sketchy_found': 0,
+        'fl_total': 0,
+        'dirs_total': 0,
+        'patch_size': None
+    }
 
     @classmethod
     def telltale(cls, fraction, total, obj):
@@ -248,9 +248,10 @@ class DirTreeCmp(D2pCommon, Log):
     _cache = {}
     def_hide = [curdir, pardir]
     def_ignore = [
-        'RCS', 'CVS', 'tags', '.git', '.hg', '.bzr', '_darcs', '__pycache__',
-        'Thumbs.db', 'Thumbs.db:encryptable', 'desktop.ini', '.directory', '.DS_Store',
-        'log.txt', 'traceback.txt']
+        'RCS', 'CVS', 'tags', '.git', '.hg', '.bzr', '_darcs', '__pycache__', 'Thumbs.db',
+        'Thumbs.db:encryptable', 'desktop.ini', '.directory', '.DS_Store', 'log.txt',
+        'traceback.txt'
+    ]
 
     # dir1_only_all = list()
     dir2_only_all = list()
@@ -355,8 +356,8 @@ class DirTreeCmp(D2pCommon, Log):
         occurences in skip.
         """
         filtered_dl = [
-            entry.relative_to(inp_pt) for entry in inp_pt.iterdir()
-            if entry not in self.skip]
+            entry.relative_to(inp_pt) for entry in inp_pt.iterdir() if entry not in self.skip
+        ]
         filtered_dl.sort()
         return filtered_dl
 
@@ -411,14 +412,14 @@ class DirTreeCmp(D2pCommon, Log):
 
     def phase4(self):
         """
-        This method executes a self-instanciating recursive iteration into every pair of bilateral subdirectorys.
+        This method executes a self-instanciating recursive iteration into every pair of bilateral
+        subdirectorys.
         """
         self.subdirs = {}
         for _cd in self.mutual_dirs:
             cd_l = self.dir1.joinpath(_cd)
             cd_r = self.dir2.joinpath(_cd)
-            self.subdirs[_cd] = self.__class__(
-                cd_l, cd_r, self.ignore, self.hide, self.shallow)
+            self.subdirs[_cd] = self.__class__(cd_l, cd_r, self.ignore, self.hide, self.shallow)
 
     def _process_hits(self, in_lst):
         """Helper to compile the directory object lists."""
@@ -448,11 +449,13 @@ class DirTreeCmp(D2pCommon, Log):
             # etc.
             self.log.warning("Well shit! We have UFO's! < unidentified file objects >")
 
-        self.cmp_survey = {'dir1': self.dir1,
-                           'dir2': self.dir2,
-                           'new': self.dir2_only_all,
-                           'diff': self.diff_all,
-                           'sketchy': self.sketchy_all}
+        self.cmp_survey = {
+            'dir1': self.dir1,
+            'dir2': self.dir2,
+            'new': self.dir2_only_all,
+            'diff': self.diff_all,
+            'sketchy': self.sketchy_all
+        }
 
         self.count['diff_found'] += len(self.diff_all)
         self.count['new_found'] += len(self.dir2_only_all)
@@ -464,10 +467,17 @@ class DirTreeCmp(D2pCommon, Log):
         return self.cmp_survey
 
     methodmap = dict(
-        dir1_list=phase0, dir2_list=phase0,
-        mutual=phase1, dir1_only=phase1, dir2_only=phase1,
-        mutual_dirs=phase2, mutual_files=phase2, mutual_sketchy=phase2,
-        same_files=phase3, diff_files=phase3, sketchy_files=phase3,
+        dir1_list=phase0,
+        dir2_list=phase0,
+        mutual=phase1,
+        dir1_only=phase1,
+        dir2_only=phase1,
+        mutual_dirs=phase2,
+        mutual_files=phase2,
+        mutual_sketchy=phase2,
+        same_files=phase3,
+        diff_files=phase3,
+        sketchy_files=phase3,
         subdirs=phase4)
 
     def __getattr__(self, attr):
@@ -535,8 +545,7 @@ class D2p(D2pCommon, Log):
                         size += self._calc_filedata(entry, only_size=True)
 
         except Exception:
-            self.log.error("Encountered a problem while measuring the patchsize.",
-                           exc_info=True)
+            self.log.error("Encountered a problem while measuring the patchsize.", exc_info=True)
             self.count['patch_size'] = 'ERROR'
         else:
             for unit in ('B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'):
@@ -548,8 +557,7 @@ class D2p(D2pCommon, Log):
     def _print_proxy(self, header=None, inf=None, label=None, survey_lst=None):
         """Helper func which prints the report variant out."""
         if header:
-            self.log.notable(
-                f"\n{'-' * 100}\n{'#' * 10} {header} ###\n")
+            self.log.notable(f"\n{'-' * 100}\n{'#' * 10} {header} ###\n")
         if inf:
             self.log.notable(f"{inf}")
 
@@ -601,10 +609,8 @@ class D2p(D2pCommon, Log):
         if fmt not in ['zip', 'tar']:
             fmt += 'tar'
         out_archive = self.output_pt.joinpath('d2p_patch')
-        self.log.notable(
-            "Archiving files. This can take a while depending on sys speed,"
-            " archive type and patch size.")
-        self.log.warning(f"{self._c('bln')}Working...{self._c('rst')}")
+        self.log.notable("Archiving files. This can take a while depending on sys speed,"
+                         " archive type and patch size.")
         shutil.make_archive(out_archive, fmt, self.d2p_tmp_dir, logger=self.log)
 
     def _mv_tmp2outdir(self):
@@ -720,8 +726,7 @@ def chk_indir(inp):
 def _parse_args():
     """Gets the args if CLI is used."""
     aps = argparse.ArgumentParser(
-        description='Generates a diff-patch or overview of two given directory'
-        ' structures.')
+        description='Generates a diff-patch or overview of two given directory structures')
     aps.add_argument(
         'dir1',
         action='store',
@@ -736,43 +741,42 @@ def _parse_args():
     opts.add_argument(
         '-d', '--dir',
         action='store_true',
-        help='Outputs the diff as a directory structure.')
+        help='Outputs the diff as a directory structure')
     opts.add_argument(
         '-a', '--archive',
         type=str,
         choices=('xz', 'gz', 'bz', 'zip', 'tar'),
-        help='Outputs the diff as archive of given type.')
+        help='Outputs the diff as archive of given type')
     opts.add_argument(
         '-r', '--report',
         type=str,
         choices=('console', 'file', 'both'),
-        help='Outputs the diff as comparison report to given target.')
+        help='Outputs the diff as comparison report to given target')
     aps.add_argument(
         '-o', '--outpath',
         action='store',
         type=pt,
-        help='Output path name for the diff result. Defaults to the parent dir'
-        ' of <dir2> if not given.')
+        help='Output path name for the diff result. Defaults to the parent dir of <dir2> '
+        'if not given')
     aps.add_argument(
         '-i', '--indepth',
         action='store_true',
-        help='Compares the files content instead statinfos like size, date of'
-        ' last change.')
+        help='Compares the files content instead statinfos like size, date of last change')
     aps.add_argument(
         '-n', '--no_log',
         action='store_false',
-        help='Deactivates the use of a logfile in the script path.')
+        help='Deactivates the use of a logfile in the script path')
     aps.add_argument(
         '-l', '--loglevel',
         type=str,
         default='NOTABLE',
         choices=['DEBUG', 'INFO', 'NOTABLE', 'WARNING', 'ERROR', 'CRITICAL'],
-        help='Set minimum log-level for the console. Default is "notable". Use "warning"'
-        ' or higher to reduce output.')
+        help='Set minimum log-level for the console: Default is "notable" Use "warning" '
+        'or higher to reduce output')
     aps.add_argument(
         '--version',
         action='version',
-        version=f'%(prog)s : { __title__} {__version__}')
+        version=f"{__title__} {__version__}")
     return aps.parse_args()
 
 

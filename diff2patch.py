@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 """
-Copyright 2023 madeddy
+Copyright 2025 madeddy
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -32,18 +32,19 @@ __status__ = 'Development'
 __version__ = '0.25.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
-import sys
+
 import argparse
-from types import GenericAlias
+import logging
+import shutil
+import stat
+import sys
+import tempfile
+from copy import copy
+from operator import attrgetter
 from os import curdir, pardir
 from pathlib import Path as pt
-from operator import attrgetter
-from copy import copy
-import stat as st
-import tempfile
-import shutil
-import logging
-from time import strftime, localtime, sleep
+from time import localtime, sleep, strftime
+from types import GenericAlias
 
 # NOTE: The os.system alternate to ctypes is apparently a undocumented sys call to win
 # which activates also color support
@@ -312,7 +313,7 @@ class DirTreeCmp(D2pCommon, Log):
         s2, status = self._get_stat(f2)
         if not status:
             return False
-        if not st.S_ISREG(s1[0]) or not st.S_ISREG(s2[0]):
+        if not stat.S_ISREG(s1[0]) or not stat.S_ISREG(s2[0]):
             return False
         if shallow and s1 == s2:
             return True
@@ -392,13 +393,13 @@ class DirTreeCmp(D2pCommon, Log):
             stat_2, status = self._get_stat(path_2)
 
             if status:
-                type_1 = st.S_IFMT(stat_1[0])
-                type_2 = st.S_IFMT(stat_2[0])
+                type_1 = stat.S_IFMT(stat_1[0])
+                type_2 = stat.S_IFMT(stat_2[0])
                 if type_1 != type_2:
                     self.mutual_sketchy.append(x)
-                elif st.S_ISDIR(type_1):
+                elif stat.S_ISDIR(type_1):
                     self.mutual_dirs.append(x)
-                elif st.S_ISREG(type_1):
+                elif stat.S_ISREG(type_1):
                     self.mutual_files.append(x)
                 else:
                     self.mutual_sketchy.append(x)

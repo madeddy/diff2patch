@@ -55,6 +55,7 @@ if sys.platform.startswith('win32'):
 
         try:
             from ctypes import windll
+
             # os.system('color')  # untested
         except ImportError:
             tty_colors = False
@@ -62,34 +63,39 @@ if sys.platform.startswith('win32'):
             k = windll.kernel32
             k.SetConsoleMode(k.GetStdHandle(-11), 7)
 
-
 # TODO:
 # test patch calc functionality some more
 # IDEA: Add abbility to output other cmp lists(like filecmp)
+
 
 class Log:
     """This configures and initiates all logging functionality for the module."""
 
     log = None
-    colormap = {'rst': '\x1b[0m',  # reset
-                'bld': '\x1b[1m',  # bold
-                'ul': '\x1b[4m',  # underline
-                'bln': '\x1b[5m',  # blinking
-                'rev': '\x1b[7m',  # reverse fg<->bg
-                'blk': '\x1b[30m',  # black
-                'ora': '\x1b[31m',  # orange
-                'gre': '\x1b[32m',  # green
-                'ylw': '\x1b[33m',  # yellow
-                'blu': '\x1b[34m',  # blue
-                'red': '\x1b[35m',  # red
-                'cya': '\x1b[36m',  # cyan
-                'b_blu': '\x1b[44;30m',  # background blue
-                'b_red': '\x1b[45;30m',  # background red
-                'b_wht': '\x1b[47;30m',  # background white
-                'ret': '\x1b[10D\x1b[1A\x1b[K'}  # write on same line: (xD - x rows left,
-    # xA - x lines up, K - erase line)
+    ansi_colormap = {
+        'reset': '\x1b[0m',
+        'bold': '\x1b[1m',
+        'uline': '\x1b[4m',  # underline
+        'blink': '\x1b[5m',  # blinking
+        'reverse': '\x1b[7m',  # fg <-> bg
+        'black': '\x1b[30m',
+        'orange': '\x1b[31m',
+        'green': '\x1b[32m',
+        'yellew': '\x1b[33m',
+        'blue': '\x1b[34m',
+        'red': '\x1b[35m',
+        'cyan': '\x1b[36m',
+        'lblue': '\x1b[94m',  # light blue
+        'bg_yellow': '\x1b[43;30m',  # bg = background
+        'bg_blue': '\x1b[44;30m',
+        'bg_red': '\x1b[45;30m',
+        'bg_white': '\x1b[47;30m',
+        'erase': '\x1b[1A\x1b[2K\x1b[1A',  # erase last line
+        'return': '\x1b[10D\x1b[1A\x1b[K'  # write on same line: (xD=x rows left, xA=x lines up,
+        # K=erase line)
+    }
 
-    colormap.update((k, '') for k in colormap if not tty_colors)
+    ansi_colormap.update((k, '') for k in ansi_colormap if not tty_colors)
 
     class ColorFormatter(logging.Formatter):
         """A sublassing of Formatter which adds colors to the loggers levelnames."""
@@ -102,7 +108,8 @@ class Log:
             'NOTABLE': '34',  # blue
             'WARNING': '33',  # yellow
             'ERROR': '1;35',  # bold, red
-            'CRITICAL': '30;41'}  # black, on red bg
+            'CRITICAL': '30;41'  # black, on red bg
+        }
 
         def __init__(self, fmt):
             super().__init__(fmt, style='{')
@@ -130,10 +137,9 @@ class Log:
             return res if not self.rev else not res
 
     @classmethod
-    def _c(cls, key):
-        """Delivers the correct ansi escape sequence to a color/effect name(key) from a
-        dict."""
-        return cls.colormap[key]
+    def cm(cls, key):
+        """Shorthand to the `ansi_colormap` dict for easier usage."""
+        return cls.ansi_colormap[key]
 
     def _notable(self, msg, *args, **kwargs):
         """
@@ -210,15 +216,14 @@ class D2pCommon:
             total:      The full amount objects to work through
             obj:        The current object in work
         """
-        return (f"[{cls._c('b_blu')}{fraction / float(total):05.1%}"
-                f"{cls._c('rst')}] {obj!s:>4}")
+        return (f"[{cls.cm('bg_blue')}{fraction / float(total):05.1%}"
+                f"{cls.cm('reset')}] {obj!s:>4}")
 
     @classmethod
     def _exit(cls):
         cls.log.notable("Exiting Diff2Patch.\n")
         for i in range(10, -1, -1):
-            cls.log.warning(
-                f"{cls._c('b_red')}< {i} >{cls._c('rst')} {cls._c('ret')}")
+            cls.log.warning(f"{cls.cm('bg_red')}< {i} >{cls.cm('reset')} {cls.cm('return')}")
             sleep(0.2)
         sys.exit(0)
 
@@ -612,7 +617,11 @@ class D2p(D2pCommon, Log):
         out_archive = self.output_pt.joinpath('d2p_patch')
         self.log.notable("Archiving files. This can take a while depending on sys speed,"
                          " archive type and patch size.")
+        self.log.warning(f"{self.cm('blink')}Working...{self.cm('reset')}")
         shutil.make_archive(out_archive, fmt, self.d2p_tmp_dir, logger=self.log)
+
+        # TEST to replace blinking "working..." if done
+        self.log.warning(f"{self.cm('erase')}")
 
     def _mv_tmp2outdir(self):
         """Moves temporary content to real output."""
@@ -802,8 +811,7 @@ def main(cfg):
 
     mode = 'directory' if cfg.dir else 'archive' if cfg.archive else 'report'
     dlg.log.notable(
-        f"{dlg._c('b_blu')}Start of diff2patch in {mode} mode."
-        f"{dlg._c('rst')}\n"
+        f"{dlg.cm('bg_blue')}Start of diff2patch in {mode} mode.{dlg.cm('reset')}\n"
         f"Comparing > DIR 1:{cfg.dir1} DIR 2:{cfg.dir2}")
 
     dtc = DirTreeCmp(cfg.dir1, cfg.dir2, shallow=cfg.indepth)

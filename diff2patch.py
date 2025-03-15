@@ -269,13 +269,14 @@ class DirTreeCmp(D2pCommon, Log):
     cmp_survey = dict()
 
     def __init__(self, dir1, dir2, ignore=None, hide=None, shallow=True):
-        self.cmp_inst = None
         self.dir1 = self.check_inpath(dir1)
         self.dir2 = self.check_inpath(dir2)
         self.ignore = DirTreeCmp.default_ignore if not ignore else ignore
         self.hide = DirTreeCmp.default_hide if not hide else hide
-        self.skip = self.hide + self.ignore
         self.shallow = shallow
+
+        self.skip = self.hide + self.ignore
+        self.cmp_inst = None
 
     @classmethod
     def deep_cmp(cls, f1, f2):
@@ -316,6 +317,7 @@ class DirTreeCmp(D2pCommon, Log):
 
         s1, status = self.get_stat(f1)
         s2, status = self.get_stat(f2)
+
         if not status:
             return False
         if not stat.S_ISREG(s1[0]) or not stat.S_ISREG(s2[0]):
@@ -331,6 +333,7 @@ class DirTreeCmp(D2pCommon, Log):
             if len(self.cache) > 100:
                 self.cache.clear()
             self.cache[f1, f2, s1, s2] = outcome
+
         return outcome
 
     def cmp_dirfiles(self, d1, d2, mutual, shallow=True):
@@ -466,6 +469,7 @@ class DirTreeCmp(D2pCommon, Log):
         self.count['diff_found'] += len(self.diff_all)
         self.count['new_found'] += len(self.dir2_only_all)
         self.count['sketchy_found'] += len(self.sketchy_all)
+
         self.log.info(f"We found {self.count['diff_found']} different files,"
                       f" {self.count['new_found']} additional files in directory 2"
                       f" and {self.count['sketchy_found']} non comparable files.")
@@ -506,17 +510,18 @@ class D2p(D2pCommon, Log):
                     as last path element
     """
 
-    d2p_tmp_dir = None
     outdir_name = 'diff2patch_out'
     output_pt = None
+    d2p_tmp_dir = None
 
     def __init__(self, cmp_survey, dir2_pt, out_base_pt=None, mock_mode=False):
         self.cmp_survey = cmp_survey
-        self.patch_lst = list()
         self.inp_pt = self.check_inpath(dir2_pt)
         self.out_base_pt = self.inp_pt.parent if not out_base_pt else self.check_inpath(
             out_base_pt)
         self.mock_mode = mock_mode
+
+        self.patch_lst = list()
 
     def calc_filedata(self, inp, only_size=False):
         """Returns the size of a pathlike in bytes."""
@@ -524,12 +529,14 @@ class D2p(D2pCommon, Log):
             if not only_size:
                 self.count['fl_total'] += 1
             return inp.stat(follow_symlinks=False).st_size
+
         elif inp.is_dir():
             if not only_size:
                 self.count['dirs_total'] += 1
         else:
             self.log.warning("Irregular path entry while calculating patch-data:"
                              f"{inp}")
+
         return 0
 
     def calc_patch_data(self, inp, only_size=False):
@@ -614,10 +621,12 @@ class D2p(D2pCommon, Log):
         """Constructs a archive with the outdir content."""
         if fmt not in ['zip', 'tar']:
             fmt += 'tar'
+
         out_archive = self.output_pt.joinpath('d2p_patch')
         self.log.notable("Archiving files. This can take a while depending on sys speed,"
                          " archive type and patch size.")
         self.log.warning(f"{self.cm('blink')}Working...{self.cm('reset')}")
+
         shutil.make_archive(out_archive, fmt, self.d2p_tmp_dir, logger=self.log)
 
         # TEST to replace blinking "working..." if done
@@ -699,9 +708,11 @@ class D2p(D2pCommon, Log):
 
     def compile_patch_list(self):
         """Prepairs the patch list from the diff-survey dict."""
-        self.patch_lst = [*self.cmp_survey['new'],
-                          *self.cmp_survey['diff'],
-                          *self.cmp_survey['sketchy']]
+        self.patch_lst = [
+            *self.cmp_survey['new'],
+            *self.cmp_survey['diff'],
+            *self.cmp_survey['sketchy']
+        ]
 
     def run(self):
         """Controls the process of generating a patch from the diff-patch lists."""
@@ -730,17 +741,22 @@ def chk_indir(inp):
         Log.log.critical(
             f"Input needs to be a directory path: {inp}", exc_info=True)
         raise NotADirectoryError
+
     return Path(inp)
 
 
 def parse_args():
+    epi = "Default output dir is set to the parent dir of <dir2>. Change with option -o."
     ap = argparse.ArgumentParser(
+        description='Generates a diff-patch or overview of two given directory structures',
+        epilog=epi)
 
     ap.add_argument(
         'dir1',
         action='store',
         type=chk_indir,
         help='Dir 1/left directory')
+
     ap.add_argument(
         'dir2',
         action='store',
@@ -749,40 +765,57 @@ def parse_args():
 
     opts = ap.add_mutually_exclusive_group(required=True)
     opts.add_argument(
-        '-d', '--dir',
+        '-d',
+        '--dir',
         action='store_true',
         help='Outputs the diff as a directory structure')
+
     opts.add_argument(
-        '-a', '--archive',
+        '-a',
+        '--archive',
         type=str,
         choices=('xz', 'gz', 'bz', 'zip', 'tar'),
         help='Outputs the diff as archive of given type')
+
     opts.add_argument(
-        '-r', '--report',
+        '-r',
+        '--report',
         type=str,
         choices=('console', 'file', 'both'),
         help='Outputs the diff as comparison report to given target')
+
     ap.add_argument(
+        '-o',
+        '--outpath',
         action='store',
         type=Path,
         help='Output path name for the diff result. Defaults to the parent dir of <dir2> '
         'if not given')
+
     ap.add_argument(
+        '-i',
+        '--indepth',
         action='store_true',
         help='Compares the files content instead statinfos like size, date of last change')
+
     ap.add_argument(
+        '--no_log',
         action='store_false',
         help='Deactivates the use of a logfile in the script path')
+
     ap.add_argument(
+        '--loglevel',
         type=str,
         default='NOTABLE',
         choices=['DEBUG', 'INFO', 'NOTABLE', 'WARNING', 'ERROR', 'CRITICAL'],
         help='Set minimum log-level for the console: Default is "notable" Use "warning" '
         'or higher to reduce output')
+
     ap.add_argument(
         '--version',
         action='version',
         version=f"{__title__} {__version__}")
+
     return ap.parse_args()
 
 
@@ -824,16 +857,17 @@ def main():
                 d2p.pack_difftree(cfg.archive)
         except OSError:
             d2p.log.error(
-                "Encountered a problem as we attempted to move the patch to"
-                " destination.", exc_info=True)
+                "Encountered a problem as we attempted to move the patch to destination.",
+                exc_info=True)
         else:
-            d2p.log.notable("The patch result of the diff task was written to path"
-                            f" {d2p.output_pt}.")
+            d2p.log.notable(
+                f"The patch result of the diff task was written to path {d2p.output_pt}.")
+
     else:
         d2p.print_diff()
         diff_target = cfg.report if cfg.report != "both" else "terminal and file"
-        d2p.log.notable("The composition of the diff report is done and was written to"
-                        f" {diff_target}.")
+        d2p.log.notable(
+            f"The composition of the diff report is done and was written to {diff_target}.")
 
     try:
         d2p._dispose()
@@ -846,6 +880,7 @@ def main():
         f" {d2p.count['dirs_total']} directories measures to a unpacked size of"
         f" {d2p.count['patch_size']}.")
     d2p.log.info("Choosen diff2patch task completed.")
+
     d2p._exit()
 
 

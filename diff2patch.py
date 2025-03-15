@@ -29,7 +29,7 @@ __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
 __author__ = 'madeddy'
 __status__ = 'Development'
-__version__ = '0.25.0-alpha'
+__version__ = '0.26.0-alpha'
 __url__ = "https://github.com/madeddy/diff2patch"
 
 
@@ -81,7 +81,7 @@ class Log:
         'black': '\x1b[30m',
         'orange': '\x1b[31m',
         'green': '\x1b[32m',
-        'yellew': '\x1b[33m',
+        'yellow': '\x1b[33m',
         'blue': '\x1b[34m',
         'red': '\x1b[35m',
         'cyan': '\x1b[36m',
@@ -205,7 +205,7 @@ class D2pCommon:
         'fl_total': 0,
         'dirs_total': 0,
         'patch_size': None
-    }
+        }
 
     @classmethod
     def telltale(cls, fraction, total, obj):
@@ -250,10 +250,10 @@ class DirTreeCmp(D2pCommon, Log):
                     compiled together in a dict
     """
 
-    bufsize = 8 * 1024
-    _cache = {}
-    def_hide = [curdir, pardir]
-    def_ignore = [
+    buffer_size = 8 * 1024
+    cache = {}
+    default_hide = [curdir, pardir]
+    default_ignore = [
         'RCS', 'CVS', 'tags', '.git', '.hg', '.bzr', '_darcs', '__pycache__', 'Thumbs.db',
         'Thumbs.db:encryptable', 'desktop.ini', '.directory', '.DS_Store', 'log.txt',
         'traceback.txt'
@@ -272,25 +272,25 @@ class DirTreeCmp(D2pCommon, Log):
         self.cmp_inst = None
         self.dir1 = self.check_inpath(dir1)
         self.dir2 = self.check_inpath(dir2)
-        self.hide = DirTreeCmp.def_hide if not hide else hide
-        self.ignore = DirTreeCmp.def_ignore if not ignore else ignore
+        self.ignore = DirTreeCmp.default_ignore if not ignore else ignore
+        self.hide = DirTreeCmp.default_hide if not hide else hide
         self.skip = self.hide + self.ignore
         self.shallow = shallow
 
     @classmethod
-    def _deep_cmp(cls, f1, f2):
+    def deep_cmp(cls, f1, f2):
         """Compares two files content in chunks."""
         with f1.open("rb") as of1, f2.open("rb") as of2:
             while True:
-                b1 = of1.read(cls.bufsize)
-                b2 = of2.read(cls.bufsize)
+                b1 = of1.read(cls.buffer_size)
+                b2 = of2.read(cls.buffer_size)
                 if b1 != b2:
                     return False
                 if not b1:
                     return True
 
     @classmethod
-    def _get_stat(cls, inp):
+    def get_stat(cls, inp):
         """Returns chosen stat modes for a path object."""
         modes = attrgetter('st_mode', 'st_size', 'st_mtime')
         try:
@@ -314,8 +314,8 @@ class DirTreeCmp(D2pCommon, Log):
         changes.
         """
 
-        s1, status = self._get_stat(f1)
-        s2, status = self._get_stat(f2)
+        s1, status = self.get_stat(f1)
+        s2, status = self.get_stat(f2)
         if not status:
             return False
         if not stat.S_ISREG(s1[0]) or not stat.S_ISREG(s2[0]):
@@ -325,12 +325,12 @@ class DirTreeCmp(D2pCommon, Log):
         if s1[1] != s2[1]:
             return False
 
-        outcome = self._cache.get((f1, f2, s1, s2))
+        outcome = self.cache.get((f1, f2, s1, s2))
         if outcome is None:
-            outcome = self._deep_cmp(f1, f2)
-            if len(self._cache) > 100:
-                self._cache.clear()
-            self._cache[f1, f2, s1, s2] = outcome
+            outcome = self.deep_cmp(f1, f2)
+            if len(self.cache) > 100:
+                self.cache.clear()
+            self.cache[f1, f2, s1, s2] = outcome
         return outcome
 
     def cmp_dirfiles(self, d1, d2, mutual, shallow=True):
@@ -356,7 +356,7 @@ class DirTreeCmp(D2pCommon, Log):
             res[cmp_res].append(x)
         return res
 
-    def _get_dirlist(self, inp_pt):
+    def get_dirlist(self, inp_pt):
         """
         Helper which returns to phase0 a list of all directory entrys without the
         occurences in skip.
@@ -372,8 +372,8 @@ class DirTreeCmp(D2pCommon, Log):
         Lists for both dirs the content and filters excludet names out. Doesn't traverse
         inside subdirectories.
         """
-        self.dir1_list = self._get_dirlist(self.dir1)
-        self.dir2_list = self._get_dirlist(self.dir2)
+        self.dir1_list = self.get_dirlist(self.dir1)
+        self.dir2_list = self.get_dirlist(self.dir2)
 
     def phase1(self):
         """Computes lists with mutual and non mutual files and dirs."""
@@ -394,8 +394,8 @@ class DirTreeCmp(D2pCommon, Log):
             path_1 = self.dir1.joinpath(x)
             path_2 = self.dir2.joinpath(x)
 
-            stat_1, status = self._get_stat(path_1)
-            stat_2, status = self._get_stat(path_2)
+            stat_1, status = self.get_stat(path_1)
+            stat_2, status = self.get_stat(path_2)
 
             if status:
                 type_1 = stat.S_IFMT(stat_1[0])
@@ -427,29 +427,29 @@ class DirTreeCmp(D2pCommon, Log):
             cd_r = self.dir2.joinpath(_cd)
             self.subdirs[_cd] = self.__class__(cd_l, cd_r, self.ignore, self.hide, self.shallow)
 
-    def _process_hits(self, in_lst):
+    def process_hits(self, in_lst):
         """Helper to compile the directory object lists."""
         return [self.dir2.joinpath(entry) for entry in in_lst if in_lst]
 
-    def _gather_inst_hits(self):
+    def gather_inst_hits(self):
         """Adds for every subdir instance the findings."""
-        self.dir2_only_all.extend(self._process_hits(self.dir2_only))
-        self.diff_all.extend(self._process_hits(self.diff_files))
-        self.sketchy_all.extend(self._process_hits(self.sketchy_files))
+        self.dir2_only_all.extend(self.process_hits(self.dir2_only))
+        self.diff_all.extend(self.process_hits(self.diff_files))
+        self.sketchy_all.extend(self.process_hits(self.sketchy_files))
 
-    def _recursive_cmp(self):
+    def recursive_cmp(self):
         """
         Recursively traverses into bilateral subdirectorys, by calling for every level
         below the last a new comparison instance and collects the outcome of every new
         directory.
         """
-        self._gather_inst_hits()
+        self.gather_inst_hits()
         for self.cmp_inst in self.subdirs.values():
-            self.cmp_inst._recursive_cmp()
+            self.cmp_inst.recursive_cmp()
 
     def run_compare(self):
         """Controls some steps of compare process and returns the outcome."""
-        self._recursive_cmp()
+        self.recursive_cmp()
         if self.sketchy_all:
             # NOTE: perhaps do something with this e.g. deeper checks, warns
             # etc.
@@ -518,7 +518,7 @@ class D2p(D2pCommon, Log):
             out_base_pt)
         self.mock_mode = mock_mode
 
-    def _calc_filedata(self, inp, only_size=False):
+    def calc_filedata(self, inp, only_size=False):
         """Returns the size of a pathlike in bytes."""
         if inp.is_file() and not inp.is_symlink():
             if not only_size:
@@ -541,14 +541,14 @@ class D2p(D2pCommon, Log):
         try:
             if not only_size:
                 for ele in inp.rglob('*'):
-                    size += self._calc_filedata(ele)
+                    size += self.calc_filedata(ele)
             else:
                 for entry in inp:
                     if entry.is_dir():
                         for ele in entry.rglob('*'):
-                            size += self._calc_filedata(ele, only_size=True)
+                            size += self.calc_filedata(ele, only_size=True)
                     else:
-                        size += self._calc_filedata(entry, only_size=True)
+                        size += self.calc_filedata(entry, only_size=True)
 
         except Exception:
             self.log.error("Encountered a problem while measuring the patchsize.", exc_info=True)
@@ -610,7 +610,7 @@ class D2p(D2pCommon, Log):
         if outp:
             shutil.rmtree(self.output_pt)
 
-    def _pack_difftree(self, fmt):
+    def pack_difftree(self, fmt):
         """Constructs a archive with the outdir content."""
         if fmt not in ['zip', 'tar']:
             fmt += 'tar'
@@ -623,7 +623,7 @@ class D2p(D2pCommon, Log):
         # TEST to replace blinking "working..." if done
         self.log.warning(f"{self.cm('erase')}")
 
-    def _mv_tmp2outdir(self):
+    def mv_tmp2outdir(self):
         """Moves temporary content to real output."""
         # FIXME: move does error if src exists in dst; how?
         fl_done = 0
@@ -635,20 +635,20 @@ class D2p(D2pCommon, Log):
             shutil.move(entry, self.output_pt)
 
     @staticmethod
-    def _void_dir(dst):
+    def void_dir(dst):
         """Checks if given directory has content."""
         return not any(dst.iterdir())
 
-    def _make_dirstruct(self, dst):
+    def make_dirstruct(self, dst):
         """Constructs any needet output directorys if they not already exist."""
         if not dst.exists():
             self.log.info(f"Creating directory structure for: {dst}")
             dst.mkdir(parents=True, exist_ok=True)
 
-    def _check_output_exists(self):
+    def check_output_exists(self):
         """Tests if the d2p-output already exists and if, checks with the user how to
         proceed. Choices are to erase the old output-dir or to quit."""
-        if self.output_pt.exists() and not self._void_dir(self.output_pt):
+        if self.output_pt.exists() and not self.void_dir(self.output_pt):
             self.log.warning(f"The output dir '{self.output_pt}' exists already. If"
                              " we proceed the content will be replaced!")
 
@@ -665,7 +665,7 @@ class D2p(D2pCommon, Log):
             self._dispose(outp=True)
 
     @staticmethod
-    def _mockcopy(_, dst):
+    def mockcopy(_, dst):
         """
         This is a mock of the copy function for use in shutil.copytree, which produces
         zero-size files to save time and other ressources.
@@ -678,7 +678,7 @@ class D2p(D2pCommon, Log):
         Path(dst).touch()
         return dst
 
-    def _gather_patchtree(self):
+    def gather_patchtree(self):
         """Copys the patch content with relative paths to the temp-dir."""
         for src in self.patch_lst:
             rel_src = src.relative_to(self.inp_pt)
@@ -689,9 +689,9 @@ class D2p(D2pCommon, Log):
                     shutil.copytree(src, dst, dirs_exist_ok=True)
                 else:
                     shutil.copytree(src, dst, dirs_exist_ok=True,
-                                    copy_function=self._mockcopy)
+                                    copy_function=self.mockcopy)
             elif src.is_file():
-                self._make_dirstruct(dst.parent)
+                self.make_dirstruct(dst.parent)
                 if not self.mock_mode:
                     shutil.copy2(src, dst)
                 else:
@@ -711,14 +711,14 @@ class D2p(D2pCommon, Log):
 
         if not self.mock_mode:
             self.output_pt = self.out_base_pt / self.outdir_name
-            self._check_output_exists()
-            self._make_dirstruct(self.output_pt)
+            self.check_output_exists()
+            self.make_dirstruct(self.output_pt)
 
         self.compile_patch_list()
-        self._gather_patchtree()
+        self.gather_patchtree()
         self.calc_patch_data(self.d2p_tmp_dir)
 
-        if self._void_dir(self.d2p_tmp_dir):
+        if self.void_dir(self.d2p_tmp_dir):
             self.log.warning("No files for a patch collected.")
         else:
             self.log.info(f"Collected {self.count['fl_total']} patch files.")
@@ -733,21 +733,21 @@ def chk_indir(inp):
     return Path(inp)
 
 
-def _parse_args():
-    """Gets the args if CLI is used."""
-    aps = argparse.ArgumentParser(
-        description='Generates a diff-patch or overview of two given directory structures')
-    aps.add_argument(
+def parse_args():
+    ap = argparse.ArgumentParser(
+
+    ap.add_argument(
         'dir1',
         action='store',
         type=chk_indir,
         help='Dir 1/left directory')
-    aps.add_argument(
+    ap.add_argument(
         'dir2',
         action='store',
         type=chk_indir,
         help='Dir 2/right directory')
-    opts = aps.add_mutually_exclusive_group(required=True)
+
+    opts = ap.add_mutually_exclusive_group(required=True)
     opts.add_argument(
         '-d', '--dir',
         action='store_true',
@@ -762,41 +762,36 @@ def _parse_args():
         type=str,
         choices=('console', 'file', 'both'),
         help='Outputs the diff as comparison report to given target')
-    aps.add_argument(
-        '-o', '--outpath',
+    ap.add_argument(
         action='store',
         type=Path,
         help='Output path name for the diff result. Defaults to the parent dir of <dir2> '
         'if not given')
-    aps.add_argument(
-        '-i', '--indepth',
+    ap.add_argument(
         action='store_true',
         help='Compares the files content instead statinfos like size, date of last change')
-    aps.add_argument(
-        '-n', '--no_log',
+    ap.add_argument(
         action='store_false',
         help='Deactivates the use of a logfile in the script path')
-    aps.add_argument(
-        '-l', '--loglevel',
+    ap.add_argument(
         type=str,
         default='NOTABLE',
         choices=['DEBUG', 'INFO', 'NOTABLE', 'WARNING', 'ERROR', 'CRITICAL'],
         help='Set minimum log-level for the console: Default is "notable" Use "warning" '
         'or higher to reduce output')
-    aps.add_argument(
+    ap.add_argument(
         '--version',
         action='version',
         version=f"{__title__} {__version__}")
-    return aps.parse_args()
+    return ap.parse_args()
 
 
-def main(cfg):
-    """Main block of the module with functionality for use on CLI."""
+def main():
     if not sys.version_info[:2] >= (3, 10):
-        Log.log.critical("Must be executed in Python 3.10 or above.\n"
-                         "You are running {}".format(sys.version), exc_info=True)
-        raise Exception
+        raise RuntimeError("Must be executed in Python 3.10 or later.\n"
+                           f"You are running {sys.version}")
 
+    cfg = parse_args()
     dlg = Log
     out_base_pt = cfg.dir2.parent
     try:
@@ -824,9 +819,9 @@ def main(cfg):
     if cfg.dir or cfg.archive:
         try:
             if cfg.dir:
-                d2p._mv_tmp2outdir()
+                d2p.mv_tmp2outdir()
             elif cfg.archive:
-                d2p._pack_difftree(cfg.archive)
+                d2p.pack_difftree(cfg.archive)
         except OSError:
             d2p.log.error(
                 "Encountered a problem as we attempted to move the patch to"
@@ -855,4 +850,4 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    main(_parse_args())
+    main()

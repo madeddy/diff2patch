@@ -42,7 +42,7 @@ import tempfile
 from copy import copy
 from operator import attrgetter
 from os import curdir, pardir
-from pathlib import Path as pt
+from pathlib import Path
 from time import localtime, sleep, strftime
 from types import GenericAlias
 
@@ -173,7 +173,7 @@ class Log:
 
         # Add log-file handler if not disabled in CLI
         if logfile:
-            log_fh = logging.FileHandler(pt(__file__).parent.resolve().joinpath('d2p.log'))
+            log_fh = logging.FileHandler(Path(__file__).parent.resolve().joinpath('d2p.log'))
             log_fh.addFilter(cls._ReportFilter(reverse=True))
             log_fh.setLevel('WARNING')
             log_ff = logging.Formatter(
@@ -230,7 +230,7 @@ class D2pCommon:
     @staticmethod
     def check_inpath(inp, strict=True):
         """Helper to check if given path exist."""
-        return pt(inp).resolve(strict)
+        return Path(inp).resolve(strict)
 
 
 class DirTreeCmp(D2pCommon, Log):
@@ -675,7 +675,7 @@ class D2p(D2pCommon, Log):
         yields just parts of a dirtree as `patch_list`. This way we circumvent the
         problem and the output is simply thrown away after use.
         """
-        pt(dst).touch()
+        Path(dst).touch()
         return dst
 
     def _gather_patchtree(self):
@@ -705,7 +705,7 @@ class D2p(D2pCommon, Log):
 
     def run(self):
         """Controls the process of generating a patch from the diff-patch lists."""
-        self.d2p_tmp_dir = pt(
+        self.d2p_tmp_dir = Path(
             tempfile.mkdtemp(prefix='Diff2Patch.', suffix='.tmp'))
         self.log.debug(f"The temporary dir {self.d2p_tmp_dir} was successful made.")
 
@@ -726,11 +726,11 @@ class D2p(D2pCommon, Log):
 
 def chk_indir(inp):
     """Helper to check the input directorys for validity."""
-    if not pt(inp).resolve(strict=True).is_dir():
+    if not Path(inp).resolve(strict=True).is_dir():
         Log.log.critical(
             f"Input needs to be a directory path: {inp}", exc_info=True)
         raise NotADirectoryError
-    return pt(inp)
+    return Path(inp)
 
 
 def _parse_args():
@@ -765,7 +765,7 @@ def _parse_args():
     aps.add_argument(
         '-o', '--outpath',
         action='store',
-        type=pt,
+        type=Path,
         help='Output path name for the diff result. Defaults to the parent dir of <dir2> '
         'if not given')
     aps.add_argument(

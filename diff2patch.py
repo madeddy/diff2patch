@@ -17,13 +17,18 @@ Copyright 2025 madeddy
 
 
 
-Diff2patch is a tool which compares two directorys trees, e.g dir1/dir2, and
-compiles a set of lists with the findings.
-From this result can another directory or archive constructed, which contains all different
-or in the second dir added objects. A written report is also possible.
+Diff2patch is a tool which compares two directorys trees, e.g dir1/dir2, and compiles a
+set of lists with the findings.
+From this result can another directory or archive constructed, which contains all
+different or in the second dir added objects. A written report is also possible.
 
 Parts of the code of this tool shadows with changes to it pythons filecmp module.
 """
+
+# TODO: Overall tasks:
+# 1. Overhaul logging to proven code in other scripts
+# 2. Add test patch calc functionality some more
+# 3. IDEA: Add abbility to output other cmp lists(like filecmp)
 
 __title__ = 'Diff2patch'
 __license__ = 'Apache 2.0'
@@ -62,10 +67,6 @@ if sys.platform.startswith('win32'):
         else:
             k = windll.kernel32
             k.SetConsoleMode(k.GetStdHandle(-11), 7)
-
-# TODO:
-# test patch calc functionality some more
-# IDEA: Add abbility to output other cmp lists(like filecmp)
 
 
 class Log:
@@ -517,6 +518,7 @@ class D2p(D2pCommon, Log):
     def __init__(self, cmp_survey, dir2_pt, out_base_pt=None, mock_mode=False):
         self.cmp_survey = cmp_survey
         self.inp_pt = self.check_inpath(dir2_pt)
+        # TODO: Overhaul var names and mechanics for output
         self.out_base_pt = self.inp_pt.parent if not out_base_pt else self.check_inpath(
             out_base_pt)
         self.mock_mode = mock_mode
@@ -569,6 +571,7 @@ class D2p(D2pCommon, Log):
 
     def _print_proxy(self, header=None, inf=None, label=None, survey_lst=None):
         """Helper func which prints the report variant out."""
+        # TODO: Replace with report in tripel quote format and without log filter if possible
         if header:
             self.log.notable(f"\n{'-' * 100}\n{'#' * 10} {header} ###\n")
         if inf:
@@ -623,8 +626,9 @@ class D2p(D2pCommon, Log):
             fmt += 'tar'
 
         out_archive = self.output_pt.joinpath('d2p_patch')
-        self.log.notable("Archiving files. This can take a while depending on sys speed,"
-                         " archive type and patch size.")
+        self.log.notable(
+            "Archiving the patch files can take some time. This depends on system speed, "
+            "archive format and patch size.")
         self.log.warning(f"{self.cm('blink')}Working...{self.cm('reset')}")
 
         shutil.make_archive(out_archive, fmt, self.d2p_tmp_dir, logger=self.log)
@@ -735,6 +739,7 @@ class D2p(D2pCommon, Log):
             self.log.info(f"Collected {self.count['fl_total']} patch files.")
 
 
+# TODO: Remove casting to path and checks from argparse and perhaps main
 def chk_indir(inp):
     """Helper to check the input directorys for validity."""
     if not Path(inp).resolve(strict=True).is_dir():
@@ -746,6 +751,8 @@ def chk_indir(inp):
 
 
 def parse_args():
+    """Argument parser to provide functionality for the command-line interface."""
+
     epi = "Default output dir is set to the parent dir of <dir2>. Change with option -o."
     ap = argparse.ArgumentParser(
         description='Generates a diff-patch or overview of two given directory structures',
@@ -820,12 +827,17 @@ def parse_args():
 
 
 def main():
+    """
+    This checks if the minimum required Python version runs, instantiates the class,
+    delivers the parameters to its init and executes the program from CLI.
+    """
     if not sys.version_info[:2] >= (3, 10):
         raise RuntimeError("Must be executed in Python 3.10 or later.\n"
                            f"You are running {sys.version}")
 
     cfg = parse_args()
     dlg = Log
+    # TODO: Move Path casting and checks in classes
     out_base_pt = cfg.dir2.parent
     try:
         dlg.init_log(report=cfg.report, output_pt=out_base_pt, logfile=cfg.no_log,
